@@ -111,7 +111,21 @@ export const inviteAccessUser = createServerFn({ method: "POST" })
     await assertAdmin(context as never);
     if (!data.email) throw new Error("Informe o e-mail.");
     if (!data.fullName) throw new Error("Informe o nome completo.");
+    if (!data.email.endsWith("@origoenergia.com.br")) {
+      throw new Error("Somente e-mails @origoenergia.com.br podem ter acesso ao sistema.");
+    }
     const db = await admin();
+
+    // libera o e-mail antes de criar a conta (o banco só aceita e-mails liberados)
+    await db.from("access_allowlist").upsert(
+      {
+        email: data.email,
+        full_name: data.fullName,
+        roles: (data.roles.length ? data.roles : ["colaborador"]) as never,
+        created_by: context.userId,
+      },
+      { onConflict: "email" },
+    );
 
     const { data: invited, error } = await db.auth.admin.inviteUserByEmail(data.email, {
       redirectTo: `${data.origin}/definir-senha`,
