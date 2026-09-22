@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { takePendingQr } from "@/lib/pending-qr";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Loader2, ShieldCheck, FileSignature, QrCode } from "lucide-react";
@@ -90,9 +91,18 @@ export function AuthScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
+  const goToApp = useCallback(() => {
+    const pending = takePendingQr();
+    if (pending) {
+      navigate({ to: "/qr/$assetId", params: { assetId: pending }, replace: true });
+      return;
+    }
+    navigate({ to: "/painel", replace: true });
+  }, [navigate]);
+
   useEffect(() => {
-    if (!loading && session) navigate({ to: "/painel", replace: true });
-  }, [loading, session, navigate]);
+    if (!loading && session) goToApp();
+  }, [loading, session, goToApp]);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -103,7 +113,7 @@ export function AuthScreen() {
       toast.error("Não foi possível entrar", { description: error.message });
       return;
     }
-    navigate({ to: "/painel", replace: true });
+    goToApp();
   }
 
   async function handleMicrosoft() {
@@ -117,7 +127,7 @@ export function AuthScreen() {
       return;
     }
     if (result.redirected) return;
-    navigate({ to: "/painel", replace: true });
+    goToApp();
   }
 
   async function handleReset() {

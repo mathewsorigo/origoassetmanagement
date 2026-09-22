@@ -90,7 +90,10 @@ function AuthenticatedLayout() {
   });
 
   useEffect(() => {
-    if (!loading && !session) navigate({ to: "/auth", replace: true });
+    if (!loading && !session) {
+      rememberPendingQr(window.location.pathname);
+      navigate({ to: "/auth", replace: true });
+    }
   }, [loading, session, navigate]);
 
   async function signOut() {
