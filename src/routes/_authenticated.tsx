@@ -1,3 +1,4 @@
+import { OrigoSimbolo } from "@/components/brand-logo";
 import { createFileRoute, Outlet, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import {

@@ -1,3 +1,4 @@
+import { OrigoLogo } from "@/components/brand-logo";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { Laptop, Smartphone, FileSignature, ShieldCheck, ArrowRight } from "lucide-react";
