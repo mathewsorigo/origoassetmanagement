@@ -7,6 +7,18 @@ import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { AssetIcon, SourceBadge } from "@/components/asset-visual";
 import { AssetDetailPanel } from "@/components/asset-detail-panel";
+import { RowActions } from "@/components/row-actions";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { deleteAssetCascade } from "@/lib/entity-delete";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -87,6 +99,12 @@ function Ativos() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ ...emptyForm });
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [panelMode, setPanelMode] = useState<"view" | "edit">("view");
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: string;
+    title: string;
+    serial: string;
+  } | null>(null);
 
   const { data: assets, isLoading } = useQuery({
     queryKey: ["assets"],
@@ -139,6 +157,22 @@ function Ativos() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  const removeAsset = useMutation({
+    mutationFn: async () => {
+      if (!deleteTarget) return;
+      await deleteAssetCascade(deleteTarget.id, { serial_number: deleteTarget.serial });
+    },
+    onSuccess: () => {
+      toast.success("Ativo excluído.");
+      if (deleteTarget?.id === selectedId) setSelectedId(null);
+      setDeleteTarget(null);
+      queryClient.invalidateQueries({ queryKey: ["assets"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+
 
   const filtered = useMemo(() => {
     const t = term.trim().toLowerCase();
@@ -277,13 +311,14 @@ function Ativos() {
                 <TableHead>Fornecedor</TableHead>
                 <TableHead>Locação</TableHead>
                 <TableHead>Situação</TableHead>
+                <TableHead className="w-10" />
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading &&
                 Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={`s-${i}`}>
-                    {Array.from({ length: 5 }).map((__, j) => (
+                    {Array.from({ length: 6 }).map((__, j) => (
                       <TableCell key={j}>
                         <Skeleton className="h-4 w-full max-w-40" />
                       </TableCell>
@@ -292,7 +327,7 @@ function Ativos() {
                 ))}
               {!isLoading && filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="py-12">
+                  <TableCell colSpan={6} className="py-12">
                     <div className="flex flex-col items-center gap-3 text-center">
                       <span className="flex size-14 items-center justify-center rounded-2xl border border-dashed border-primary/30 bg-primary/5 text-primary">
                         <PackageSearch className="size-6" />
@@ -358,6 +393,24 @@ function Ativos() {
                         <SourceBadge intuneDeviceId={a.intune_device_id} />
                       </div>
                     </TableCell>
+                    <TableCell className="text-right">
+                      {canEdit && (
+                        <RowActions
+                          onEdit={() => {
+                            setPanelMode("edit");
+                            setSelectedId(a.id);
+                          }}
+                          onDelete={() =>
+                            setDeleteTarget({
+                              id: a.id,
+                              title:
+                                `${a.brand ?? ""} ${a.model ?? ""}`.trim() || a.serial_number,
+                              serial: a.serial_number,
+                            })
+                          }
+                        />
+                      )}
+                    </TableCell>
                   </TableRow>
                 );
               })}
@@ -368,7 +421,13 @@ function Ativos() {
 
       <AssetDetailPanel
         assetId={selectedId}
-        onOpenChange={(v) => !v && setSelectedId(null)}
+        initialMode={panelMode}
+        onOpenChange={(v) => {
+          if (!v) {
+            setSelectedId(null);
+            setPanelMode("view");
+          }
+        }}
         onNavigate={(dir) => {
           const i = filtered.findIndex((a) => a.id === selectedId);
           if (i < 0) return;
@@ -376,6 +435,30 @@ function Ativos() {
           if (next) setSelectedId(next.id);
         }}
       />
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(v) => !v && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-display">Excluir equipamento?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget?.title} · série {deleteTarget?.serial}. O histórico de vínculos, termos
+              e documentos deste equipamento também serão apagados. Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={removeAsset.isPending}
+              onClick={(e) => {
+                e.preventDefault();
+                removeAsset.mutate();
+              }}
+            >
+              Excluir definitivamente
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">

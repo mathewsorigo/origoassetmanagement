@@ -6,6 +6,18 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { EmployeeDetailPanel } from "@/components/employee-detail-panel";
+import { RowActions } from "@/components/row-actions";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { deleteEmployeeCascade } from "@/lib/entity-delete";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -77,6 +89,12 @@ function Pessoas() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ ...emptyForm });
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [panelMode, setPanelMode] = useState<"view" | "edit">("view");
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: string;
+    name: string;
+    email: string;
+  } | null>(null);
 
   const { data: employees, isLoading } = useQuery({
     queryKey: ["employees"],
@@ -125,6 +143,22 @@ function Pessoas() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  const removeEmployee = useMutation({
+    mutationFn: async () => {
+      if (!deleteTarget) return;
+      await deleteEmployeeCascade(deleteTarget.id, { email: deleteTarget.email });
+    },
+    onSuccess: () => {
+      toast.success("Colaborador excluído.");
+      if (deleteTarget?.id === selectedId) setSelectedId(null);
+      setDeleteTarget(null);
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+
 
   const filtered = useMemo(() => {
     const t = term.trim().toLowerCase();
@@ -206,13 +240,14 @@ function Pessoas() {
                 <TableHead>Unidade</TableHead>
                 <TableHead>Equipamentos em uso</TableHead>
                 <TableHead>Situação</TableHead>
+                <TableHead className="w-10" />
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading &&
                 Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={`s-${i}`}>
-                    {Array.from({ length: 5 }).map((__, j) => (
+                    {Array.from({ length: 6 }).map((__, j) => (
                       <TableCell key={j}>
                         <Skeleton className="h-4 w-full max-w-40" />
                       </TableCell>
@@ -221,7 +256,7 @@ function Pessoas() {
                 ))}
               {!isLoading && filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="py-12">
+                  <TableCell colSpan={6} className="py-12">
                     <div className="flex flex-col items-center gap-3 text-center">
                       <span className="flex size-14 items-center justify-center rounded-2xl border border-dashed border-primary/30 bg-primary/5 text-primary">
                         <UserSearch className="size-6" />
@@ -280,6 +315,19 @@ function Pessoas() {
                     <TableCell>
                       <StatusBadge value={e.status} />
                     </TableCell>
+                    <TableCell className="text-right">
+                      {canEdit && (
+                        <RowActions
+                          onEdit={() => {
+                            setPanelMode("edit");
+                            setSelectedId(e.id);
+                          }}
+                          onDelete={() =>
+                            setDeleteTarget({ id: e.id, name: e.full_name, email: e.email })
+                          }
+                        />
+                      )}
+                    </TableCell>
                   </TableRow>
                 );
               })}
@@ -288,9 +336,39 @@ function Pessoas() {
         </div>
       </Card>
 
+      <AlertDialog open={!!deleteTarget} onOpenChange={(v) => !v && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-display">Excluir colaborador?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget?.name} · {deleteTarget?.email}. O histórico de vínculos, termos e
+              documentos desta pessoa também serão apagados. Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={removeEmployee.isPending}
+              onClick={(ev) => {
+                ev.preventDefault();
+                removeEmployee.mutate();
+              }}
+            >
+              Excluir definitivamente
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <EmployeeDetailPanel
         employeeId={selectedId}
-        onOpenChange={(v) => !v && setSelectedId(null)}
+        initialMode={panelMode}
+        onOpenChange={(v) => {
+          if (!v) {
+            setSelectedId(null);
+            setPanelMode("view");
+          }
+        }}
         onNavigate={(dir) => {
           const i = filtered.findIndex((e) => e.id === selectedId);
           if (i < 0) return;
