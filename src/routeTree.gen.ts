@@ -15,6 +15,9 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as AuthenticatedAtivosRouteImport } from './routes/_authenticated/ativos'
 import { Route as AuthenticatedPainelRouteImport } from './routes/_authenticated/painel'
+import { Route as AuthenticatedPessoasRouteImport } from './routes/_authenticated/pessoas'
+import { Route as AuthenticatedAtivosIdRouteImport } from './routes/_authenticated/ativos.$id'
+import { Route as AuthenticatedPessoasIdRouteImport } from './routes/_authenticated/pessoas.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -45,20 +48,41 @@ const AuthenticatedPainelRoute = AuthenticatedPainelRouteImport.update({
   path: '/painel',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedPessoasRoute = AuthenticatedPessoasRouteImport.update({
+  id: '/pessoas',
+  path: '/pessoas',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedAtivosIdRoute = AuthenticatedAtivosIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => AuthenticatedAtivosRoute,
+} as any)
+const AuthenticatedPessoasIdRoute = AuthenticatedPessoasIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => AuthenticatedPessoasRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
-  '/ativos': typeof AuthenticatedAtivosRoute
+  '/ativos': typeof AuthenticatedAtivosRouteWithChildren
   '/painel': typeof AuthenticatedPainelRoute
+  '/pessoas': typeof AuthenticatedPessoasRouteWithChildren
+  '/ativos/$id': typeof AuthenticatedAtivosIdRoute
+  '/pessoas/$id': typeof AuthenticatedPessoasIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
-  '/ativos': typeof AuthenticatedAtivosRoute
+  '/ativos': typeof AuthenticatedAtivosRouteWithChildren
   '/painel': typeof AuthenticatedPainelRoute
+  '/pessoas': typeof AuthenticatedPessoasRouteWithChildren
+  '/ativos/$id': typeof AuthenticatedAtivosIdRoute
+  '/pessoas/$id': typeof AuthenticatedPessoasIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -66,14 +90,33 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
-  '/_authenticated/ativos': typeof AuthenticatedAtivosRoute
+  '/_authenticated/ativos': typeof AuthenticatedAtivosRouteWithChildren
   '/_authenticated/painel': typeof AuthenticatedPainelRoute
+  '/_authenticated/pessoas': typeof AuthenticatedPessoasRouteWithChildren
+  '/_authenticated/ativos/$id': typeof AuthenticatedAtivosIdRoute
+  '/_authenticated/pessoas/$id': typeof AuthenticatedPessoasIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth' | '/reset-password' | '/ativos' | '/painel'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/reset-password'
+    | '/ativos'
+    | '/painel'
+    | '/pessoas'
+    | '/ativos/$id'
+    | '/pessoas/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/reset-password' | '/ativos' | '/painel'
+  to:
+    | '/'
+    | '/auth'
+    | '/reset-password'
+    | '/ativos'
+    | '/painel'
+    | '/pessoas'
+    | '/ativos/$id'
+    | '/pessoas/$id'
   id:
     | '__root__'
     | '/'
@@ -82,6 +125,9 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/_authenticated/ativos'
     | '/_authenticated/painel'
+    | '/_authenticated/pessoas'
+    | '/_authenticated/ativos/$id'
+    | '/_authenticated/pessoas/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -135,17 +181,62 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPainelRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/pessoas': {
+      id: '/_authenticated/pessoas'
+      path: '/pessoas'
+      fullPath: '/pessoas'
+      preLoaderRoute: typeof AuthenticatedPessoasRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/ativos/$id': {
+      id: '/_authenticated/ativos/$id'
+      path: '/$id'
+      fullPath: '/ativos/$id'
+      preLoaderRoute: typeof AuthenticatedAtivosIdRouteImport
+      parentRoute: typeof AuthenticatedAtivosRoute
+    }
+    '/_authenticated/pessoas/$id': {
+      id: '/_authenticated/pessoas/$id'
+      path: '/$id'
+      fullPath: '/pessoas/$id'
+      preLoaderRoute: typeof AuthenticatedPessoasIdRouteImport
+      parentRoute: typeof AuthenticatedPessoasRoute
+    }
   }
 }
 
+interface AuthenticatedAtivosRouteChildren {
+  AuthenticatedAtivosIdRoute: typeof AuthenticatedAtivosIdRoute
+}
+
+const AuthenticatedAtivosRouteChildren: AuthenticatedAtivosRouteChildren = {
+  AuthenticatedAtivosIdRoute: AuthenticatedAtivosIdRoute,
+}
+
+const AuthenticatedAtivosRouteWithChildren =
+  AuthenticatedAtivosRoute._addFileChildren(AuthenticatedAtivosRouteChildren)
+
+interface AuthenticatedPessoasRouteChildren {
+  AuthenticatedPessoasIdRoute: typeof AuthenticatedPessoasIdRoute
+}
+
+const AuthenticatedPessoasRouteChildren: AuthenticatedPessoasRouteChildren = {
+  AuthenticatedPessoasIdRoute: AuthenticatedPessoasIdRoute,
+}
+
+const AuthenticatedPessoasRouteWithChildren =
+  AuthenticatedPessoasRoute._addFileChildren(AuthenticatedPessoasRouteChildren)
+
 interface AuthenticatedRouteChildren {
-  AuthenticatedAtivosRoute: typeof AuthenticatedAtivosRoute
+  AuthenticatedAtivosRoute: typeof AuthenticatedAtivosRouteWithChildren
   AuthenticatedPainelRoute: typeof AuthenticatedPainelRoute
+  AuthenticatedPessoasRoute: typeof AuthenticatedPessoasRouteWithChildren
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
-  AuthenticatedAtivosRoute: AuthenticatedAtivosRoute,
+  AuthenticatedAtivosRoute: AuthenticatedAtivosRouteWithChildren,
   AuthenticatedPainelRoute: AuthenticatedPainelRoute,
+  AuthenticatedPessoasRoute: AuthenticatedPessoasRouteWithChildren,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
