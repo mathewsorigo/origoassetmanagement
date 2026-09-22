@@ -121,6 +121,7 @@ function AuthenticatedLayout() {
       await queryClient.cancelQueries();
       queryClient.clear();
       await supabase.auth.signOut();
+      setAuthNotice(reason);
       toast.error("Acesso não autorizado", { description: reason });
       navigate({ to: "/auth", replace: true });
     })();
