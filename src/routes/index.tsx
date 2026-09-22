@@ -57,15 +57,7 @@ function Index() {
   return (
     <div className="min-h-screen bg-background">
       <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
-        <div className="flex items-center gap-3">
-          <div className="flex size-10 items-center justify-center rounded-xl bg-brand-gradient text-lg font-bold text-primary-foreground">
-            Ó
-          </div>
-          <div className="leading-tight">
-            <p className="font-display text-base font-semibold">Órigo Ativos</p>
-            <p className="text-xs text-muted-foreground">Gestão de equipamentos</p>
-          </div>
-        </div>
+        <OrigoLogo className="h-11" />
         <Button asChild>
           <Link to="/auth">Entrar</Link>
         </Button>
