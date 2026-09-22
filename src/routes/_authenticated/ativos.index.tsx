@@ -158,6 +158,22 @@ function Ativos() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const removeAsset = useMutation({
+    mutationFn: async () => {
+      if (!deleteTarget) return;
+      await deleteAssetCascade(deleteTarget.id, { serial_number: deleteTarget.serial });
+    },
+    onSuccess: () => {
+      toast.success("Ativo excluído.");
+      if (deleteTarget?.id === selectedId) setSelectedId(null);
+      setDeleteTarget(null);
+      queryClient.invalidateQueries({ queryKey: ["assets"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+
+
   const filtered = useMemo(() => {
     const t = term.trim().toLowerCase();
     return (assets ?? []).filter((a) => {
