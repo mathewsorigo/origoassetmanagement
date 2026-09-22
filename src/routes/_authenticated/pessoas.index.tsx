@@ -38,7 +38,7 @@ import { employeeStatusLabel } from "@/lib/format";
 import { logAudit } from "@/lib/audit";
 import { exportToExcel } from "@/lib/excel";
 
-export const Route = createFileRoute("/_authenticated/pessoas")({
+export const Route = createFileRoute("/_authenticated/pessoas/")({
   head: () => ({
     meta: [
       { title: "Colaboradores · Órigo Ativos" },

@@ -14,15 +14,15 @@ import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as AuthenticatedAdministracaoRouteImport } from './routes/_authenticated/administracao'
-import { Route as AuthenticatedAtivosRouteImport } from './routes/_authenticated/ativos'
 import { Route as AuthenticatedAuditoriaRouteImport } from './routes/_authenticated/auditoria'
 import { Route as AuthenticatedImportacaoRouteImport } from './routes/_authenticated/importacao'
 import { Route as AuthenticatedIntegracoesRouteImport } from './routes/_authenticated/integracoes'
 import { Route as AuthenticatedPainelRouteImport } from './routes/_authenticated/painel'
-import { Route as AuthenticatedPessoasRouteImport } from './routes/_authenticated/pessoas'
 import { Route as AuthenticatedTermosRouteImport } from './routes/_authenticated/termos'
 import { Route as AuthenticatedVinculosRouteImport } from './routes/_authenticated/vinculos'
+import { Route as AuthenticatedAtivosIndexRouteImport } from './routes/_authenticated/ativos.index'
 import { Route as AuthenticatedAtivosIdRouteImport } from './routes/_authenticated/ativos.$id'
+import { Route as AuthenticatedPessoasIndexRouteImport } from './routes/_authenticated/pessoas.index'
 import { Route as AuthenticatedPessoasIdRouteImport } from './routes/_authenticated/pessoas.$id'
 import { Route as ApiPublicHermesAssinaturaRouteImport } from './routes/api/public/hermes.assinatura'
 
@@ -51,11 +51,6 @@ const AuthenticatedAdministracaoRoute =
     path: '/administracao',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthenticatedAtivosRoute = AuthenticatedAtivosRouteImport.update({
-  id: '/ativos',
-  path: '/ativos',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
 const AuthenticatedAuditoriaRoute = AuthenticatedAuditoriaRouteImport.update({
   id: '/auditoria',
   path: '/auditoria',
@@ -77,11 +72,6 @@ const AuthenticatedPainelRoute = AuthenticatedPainelRouteImport.update({
   path: '/painel',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedPessoasRoute = AuthenticatedPessoasRouteImport.update({
-  id: '/pessoas',
-  path: '/pessoas',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
 const AuthenticatedTermosRoute = AuthenticatedTermosRouteImport.update({
   id: '/termos',
   path: '/termos',
@@ -92,15 +82,27 @@ const AuthenticatedVinculosRoute = AuthenticatedVinculosRouteImport.update({
   path: '/vinculos',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedAtivosIndexRoute =
+  AuthenticatedAtivosIndexRouteImport.update({
+    id: '/ativos/',
+    path: '/ativos/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedAtivosIdRoute = AuthenticatedAtivosIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => AuthenticatedAtivosRoute,
+  id: '/ativos/$id',
+  path: '/ativos/$id',
+  getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedPessoasIndexRoute =
+  AuthenticatedPessoasIndexRouteImport.update({
+    id: '/pessoas/',
+    path: '/pessoas/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedPessoasIdRoute = AuthenticatedPessoasIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => AuthenticatedPessoasRoute,
+  id: '/pessoas/$id',
+  path: '/pessoas/$id',
+  getParentRoute: () => AuthenticatedRoute,
 } as any)
 const ApiPublicHermesAssinaturaRoute =
   ApiPublicHermesAssinaturaRouteImport.update({
@@ -114,16 +116,16 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
   '/administracao': typeof AuthenticatedAdministracaoRoute
-  '/ativos': typeof AuthenticatedAtivosRouteWithChildren
   '/auditoria': typeof AuthenticatedAuditoriaRoute
   '/importacao': typeof AuthenticatedImportacaoRoute
   '/integracoes': typeof AuthenticatedIntegracoesRoute
   '/painel': typeof AuthenticatedPainelRoute
-  '/pessoas': typeof AuthenticatedPessoasRouteWithChildren
   '/termos': typeof AuthenticatedTermosRoute
   '/vinculos': typeof AuthenticatedVinculosRoute
   '/ativos/$id': typeof AuthenticatedAtivosIdRoute
   '/pessoas/$id': typeof AuthenticatedPessoasIdRoute
+  '/ativos/': typeof AuthenticatedAtivosIndexRoute
+  '/pessoas/': typeof AuthenticatedPessoasIndexRoute
   '/api/public/hermes/assinatura': typeof ApiPublicHermesAssinaturaRoute
 }
 export interface FileRoutesByTo {
@@ -131,16 +133,16 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
   '/administracao': typeof AuthenticatedAdministracaoRoute
-  '/ativos': typeof AuthenticatedAtivosRouteWithChildren
   '/auditoria': typeof AuthenticatedAuditoriaRoute
   '/importacao': typeof AuthenticatedImportacaoRoute
   '/integracoes': typeof AuthenticatedIntegracoesRoute
   '/painel': typeof AuthenticatedPainelRoute
-  '/pessoas': typeof AuthenticatedPessoasRouteWithChildren
   '/termos': typeof AuthenticatedTermosRoute
   '/vinculos': typeof AuthenticatedVinculosRoute
   '/ativos/$id': typeof AuthenticatedAtivosIdRoute
   '/pessoas/$id': typeof AuthenticatedPessoasIdRoute
+  '/ativos': typeof AuthenticatedAtivosIndexRoute
+  '/pessoas': typeof AuthenticatedPessoasIndexRoute
   '/api/public/hermes/assinatura': typeof ApiPublicHermesAssinaturaRoute
 }
 export interface FileRoutesById {
@@ -150,16 +152,16 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
   '/_authenticated/administracao': typeof AuthenticatedAdministracaoRoute
-  '/_authenticated/ativos': typeof AuthenticatedAtivosRouteWithChildren
   '/_authenticated/auditoria': typeof AuthenticatedAuditoriaRoute
   '/_authenticated/importacao': typeof AuthenticatedImportacaoRoute
   '/_authenticated/integracoes': typeof AuthenticatedIntegracoesRoute
   '/_authenticated/painel': typeof AuthenticatedPainelRoute
-  '/_authenticated/pessoas': typeof AuthenticatedPessoasRouteWithChildren
   '/_authenticated/termos': typeof AuthenticatedTermosRoute
   '/_authenticated/vinculos': typeof AuthenticatedVinculosRoute
   '/_authenticated/ativos/$id': typeof AuthenticatedAtivosIdRoute
   '/_authenticated/pessoas/$id': typeof AuthenticatedPessoasIdRoute
+  '/_authenticated/ativos/': typeof AuthenticatedAtivosIndexRoute
+  '/_authenticated/pessoas/': typeof AuthenticatedPessoasIndexRoute
   '/api/public/hermes/assinatura': typeof ApiPublicHermesAssinaturaRoute
 }
 export interface FileRouteTypes {
@@ -169,16 +171,16 @@ export interface FileRouteTypes {
     | '/auth'
     | '/reset-password'
     | '/administracao'
-    | '/ativos'
     | '/auditoria'
     | '/importacao'
     | '/integracoes'
     | '/painel'
-    | '/pessoas'
     | '/termos'
     | '/vinculos'
     | '/ativos/$id'
     | '/pessoas/$id'
+    | '/ativos/'
+    | '/pessoas/'
     | '/api/public/hermes/assinatura'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -186,16 +188,16 @@ export interface FileRouteTypes {
     | '/auth'
     | '/reset-password'
     | '/administracao'
-    | '/ativos'
     | '/auditoria'
     | '/importacao'
     | '/integracoes'
     | '/painel'
-    | '/pessoas'
     | '/termos'
     | '/vinculos'
     | '/ativos/$id'
     | '/pessoas/$id'
+    | '/ativos'
+    | '/pessoas'
     | '/api/public/hermes/assinatura'
   id:
     | '__root__'
@@ -204,16 +206,16 @@ export interface FileRouteTypes {
     | '/auth'
     | '/reset-password'
     | '/_authenticated/administracao'
-    | '/_authenticated/ativos'
     | '/_authenticated/auditoria'
     | '/_authenticated/importacao'
     | '/_authenticated/integracoes'
     | '/_authenticated/painel'
-    | '/_authenticated/pessoas'
     | '/_authenticated/termos'
     | '/_authenticated/vinculos'
     | '/_authenticated/ativos/$id'
     | '/_authenticated/pessoas/$id'
+    | '/_authenticated/ativos/'
+    | '/_authenticated/pessoas/'
     | '/api/public/hermes/assinatura'
   fileRoutesById: FileRoutesById
 }
@@ -262,13 +264,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdministracaoRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/ativos': {
-      id: '/_authenticated/ativos'
-      path: '/ativos'
-      fullPath: '/ativos'
-      preLoaderRoute: typeof AuthenticatedAtivosRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
     '/_authenticated/auditoria': {
       id: '/_authenticated/auditoria'
       path: '/auditoria'
@@ -297,13 +292,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPainelRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/pessoas': {
-      id: '/_authenticated/pessoas'
-      path: '/pessoas'
-      fullPath: '/pessoas'
-      preLoaderRoute: typeof AuthenticatedPessoasRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
     '/_authenticated/termos': {
       id: '/_authenticated/termos'
       path: '/termos'
@@ -318,19 +306,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedVinculosRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/ativos/': {
+      id: '/_authenticated/ativos/'
+      path: '/ativos'
+      fullPath: '/ativos/'
+      preLoaderRoute: typeof AuthenticatedAtivosIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/ativos/$id': {
       id: '/_authenticated/ativos/$id'
-      path: '/$id'
+      path: '/ativos/$id'
       fullPath: '/ativos/$id'
       preLoaderRoute: typeof AuthenticatedAtivosIdRouteImport
-      parentRoute: typeof AuthenticatedAtivosRoute
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/pessoas/': {
+      id: '/_authenticated/pessoas/'
+      path: '/pessoas'
+      fullPath: '/pessoas/'
+      preLoaderRoute: typeof AuthenticatedPessoasIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/pessoas/$id': {
       id: '/_authenticated/pessoas/$id'
-      path: '/$id'
+      path: '/pessoas/$id'
       fullPath: '/pessoas/$id'
       preLoaderRoute: typeof AuthenticatedPessoasIdRouteImport
-      parentRoute: typeof AuthenticatedPessoasRoute
+      parentRoute: typeof AuthenticatedRoute
     }
     '/api/public/hermes/assinatura': {
       id: '/api/public/hermes/assinatura'
@@ -342,50 +344,32 @@ declare module '@tanstack/react-router' {
   }
 }
 
-interface AuthenticatedAtivosRouteChildren {
-  AuthenticatedAtivosIdRoute: typeof AuthenticatedAtivosIdRoute
-}
-
-const AuthenticatedAtivosRouteChildren: AuthenticatedAtivosRouteChildren = {
-  AuthenticatedAtivosIdRoute: AuthenticatedAtivosIdRoute,
-}
-
-const AuthenticatedAtivosRouteWithChildren =
-  AuthenticatedAtivosRoute._addFileChildren(AuthenticatedAtivosRouteChildren)
-
-interface AuthenticatedPessoasRouteChildren {
-  AuthenticatedPessoasIdRoute: typeof AuthenticatedPessoasIdRoute
-}
-
-const AuthenticatedPessoasRouteChildren: AuthenticatedPessoasRouteChildren = {
-  AuthenticatedPessoasIdRoute: AuthenticatedPessoasIdRoute,
-}
-
-const AuthenticatedPessoasRouteWithChildren =
-  AuthenticatedPessoasRoute._addFileChildren(AuthenticatedPessoasRouteChildren)
-
 interface AuthenticatedRouteChildren {
   AuthenticatedAdministracaoRoute: typeof AuthenticatedAdministracaoRoute
-  AuthenticatedAtivosRoute: typeof AuthenticatedAtivosRouteWithChildren
   AuthenticatedAuditoriaRoute: typeof AuthenticatedAuditoriaRoute
   AuthenticatedImportacaoRoute: typeof AuthenticatedImportacaoRoute
   AuthenticatedIntegracoesRoute: typeof AuthenticatedIntegracoesRoute
   AuthenticatedPainelRoute: typeof AuthenticatedPainelRoute
-  AuthenticatedPessoasRoute: typeof AuthenticatedPessoasRouteWithChildren
   AuthenticatedTermosRoute: typeof AuthenticatedTermosRoute
   AuthenticatedVinculosRoute: typeof AuthenticatedVinculosRoute
+  AuthenticatedAtivosIdRoute: typeof AuthenticatedAtivosIdRoute
+  AuthenticatedPessoasIdRoute: typeof AuthenticatedPessoasIdRoute
+  AuthenticatedAtivosIndexRoute: typeof AuthenticatedAtivosIndexRoute
+  AuthenticatedPessoasIndexRoute: typeof AuthenticatedPessoasIndexRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdministracaoRoute: AuthenticatedAdministracaoRoute,
-  AuthenticatedAtivosRoute: AuthenticatedAtivosRouteWithChildren,
   AuthenticatedAuditoriaRoute: AuthenticatedAuditoriaRoute,
   AuthenticatedImportacaoRoute: AuthenticatedImportacaoRoute,
   AuthenticatedIntegracoesRoute: AuthenticatedIntegracoesRoute,
   AuthenticatedPainelRoute: AuthenticatedPainelRoute,
-  AuthenticatedPessoasRoute: AuthenticatedPessoasRouteWithChildren,
   AuthenticatedTermosRoute: AuthenticatedTermosRoute,
   AuthenticatedVinculosRoute: AuthenticatedVinculosRoute,
+  AuthenticatedAtivosIdRoute: AuthenticatedAtivosIdRoute,
+  AuthenticatedPessoasIdRoute: AuthenticatedPessoasIdRoute,
+  AuthenticatedAtivosIndexRoute: AuthenticatedAtivosIndexRoute,
+  AuthenticatedPessoasIndexRoute: AuthenticatedPessoasIndexRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(

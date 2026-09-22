@@ -40,7 +40,7 @@ import { assetStatusLabel, assetTypeLabel, formatDate, formatMoney } from "@/lib
 import { logAudit } from "@/lib/audit";
 import { exportToExcel } from "@/lib/excel";
 
-export const Route = createFileRoute("/_authenticated/ativos")({
+export const Route = createFileRoute("/_authenticated/ativos/")({
   head: () => ({
     meta: [
       { title: "Ativos · Órigo Ativos" },
