@@ -1,13 +1,37 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Plus, Search, X, PackageSearch } from "lucide-react";
+import {
+  Plus,
+  Search,
+  X,
+  PackageSearch,
+  Download,
+  QrCode,
+  Tags,
+  FileSpreadsheet,
+  ChevronLeft,
+  ChevronRight,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { AssetIcon, SourceBadge } from "@/components/asset-visual";
 import { AssetDetailPanel } from "@/components/asset-detail-panel";
 import { RowActions } from "@/components/row-actions";
+import { BulkActionBar } from "@/components/bulk-action-bar";
+import { TagPicker } from "@/components/tag-picker";
+import { TagBadge } from "@/components/tag-badge";
+import { useAssetTags, useTags } from "@/lib/tags";
+import { exportToCsv, openQrSheet } from "@/lib/export";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -96,15 +120,24 @@ function Ativos() {
   const [term, setTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("todos");
   const [typeFilter, setTypeFilter] = useState("todos");
+  const [tagFilter, setTagFilter] = useState("todas");
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ ...emptyForm });
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [panelMode, setPanelMode] = useState<"view" | "edit">("view");
+  const [checked, setChecked] = useState<Set<string>>(new Set());
+  const [tagTarget, setTagTarget] = useState<string[] | null>(null);
+  const [bulkDelete, setBulkDelete] = useState(false);
+  const [page, setPage] = useState(1);
+  const pageSize = 25;
   const [deleteTarget, setDeleteTarget] = useState<{
     id: string;
     title: string;
     serial: string;
   } | null>(null);
+
+  const { data: tagList } = useTags();
+  const { data: assetTagMap } = useAssetTags();
 
   const { data: assets, isLoading } = useQuery({
     queryKey: ["assets"],
@@ -179,12 +212,39 @@ function Ativos() {
     return (assets ?? []).filter((a) => {
       if (statusFilter !== "todos" && a.status !== statusFilter) return false;
       if (typeFilter !== "todos" && a.asset_type !== typeFilter) return false;
+      if (tagFilter !== "todas") {
+        const tags = assetTagMap?.get(a.id) ?? [];
+        if (!tags.some((tag) => tag.id === tagFilter)) return false;
+      }
       if (!t) return true;
       return [a.serial_number, a.brand, a.model, a.patrimony, a.imei, a.location]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(t));
     });
-  }, [assets, term, statusFilter, typeFilter]);
+  }, [assets, term, statusFilter, typeFilter, tagFilter, assetTagMap]);
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPage = Math.min(page, pageCount);
+  const pageRows = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const allChecked = pageRows.length > 0 && pageRows.every((a) => checked.has(a.id));
+
+  function toggleRow(id: string) {
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function togglePage() {
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (allChecked) pageRows.forEach((a) => next.delete(a.id));
+      else pageRows.forEach((a) => next.add(a.id));
+      return next;
+    });
+  }
 
   function holderOf(asset: (typeof filtered)[number]) {
     const active = (asset.assignments as Array<{
@@ -193,6 +253,55 @@ function Ativos() {
     }> | null)?.find((x) => x.status === "ativo");
     return active?.employee ?? null;
   }
+
+  function rowsToExport(list: typeof filtered) {
+    return list.map((a) => ({
+      Tipo: assetTypeLabel[a.asset_type],
+      Marca: a.brand,
+      Modelo: a.model,
+      Série: a.serial_number,
+      Patrimônio: a.patrimony,
+      IMEI: a.imei,
+      Fornecedor: a.supplier,
+      Situação: assetStatusLabel[a.status],
+      Usuário: holderOf(a)?.full_name ?? "",
+      Etiquetas: (assetTagMap?.get(a.id) ?? []).map((t) => t.name).join(", "),
+      "Custo mensal": a.monthly_cost,
+      "Fim da locação": a.lease_end,
+    }));
+  }
+
+  const selectedAssets = filtered.filter((a) => checked.has(a.id));
+
+  async function generateQr(list: typeof filtered) {
+    if (!list.length) {
+      toast.error("Selecione ao menos um equipamento.");
+      return;
+    }
+    await openQrSheet(
+      list.map((a) => ({
+        title: `${a.brand ?? ""} ${a.model ?? ""}`.trim() || a.serial_number,
+        subtitle: `Série ${a.serial_number}${a.patrimony ? ` · Pat. ${a.patrimony}` : ""}`,
+        value: `${window.location.origin}/ativos/${a.id}`,
+      })),
+    );
+  }
+
+  const removeSelected = useMutation({
+    mutationFn: async () => {
+      for (const asset of selectedAssets) {
+        await deleteAssetCascade(asset.id, { serial_number: asset.serial_number });
+      }
+    },
+    onSuccess: () => {
+      toast.success("Equipamentos excluídos.");
+      setChecked(new Set());
+      setBulkDelete(false);
+      setSelectedId(null);
+      queryClient.invalidateQueries({ queryKey: ["assets"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   return (
     <div>
