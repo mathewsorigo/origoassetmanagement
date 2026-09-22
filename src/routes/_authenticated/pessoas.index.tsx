@@ -9,6 +9,8 @@ import {
   FileSpreadsheet,
   Trash2,
 } from "lucide-react";
+import { SortableHead, TablePagination } from "@/components/data-table-ui";
+import { useTableState } from "@/hooks/useTableState";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
@@ -197,7 +199,19 @@ function Pessoas() {
     ).filter((a) => a.status === "ativo");
   }
 
-  const allChecked = filtered.length > 0 && filtered.every((e) => checked.has(e.id));
+  const table = useTableState(filtered, {
+    key: "pessoas",
+    accessors: {
+      colaborador: (e) => e.full_name,
+      area: (e) => e.department,
+      unidade: (e) => e.unit,
+      equipamentos: (e) => activeAssets(e).length,
+      situacao: (e) => e.status,
+    },
+    defaultSort: { key: "colaborador", dir: "asc" },
+  });
+  const pageRows = table.pageRows;
+  const allChecked = pageRows.length > 0 && pageRows.every((e) => checked.has(e.id));
   const selectedEmployees = filtered.filter((e) => checked.has(e.id));
 
   function toggleRow(id: string) {
@@ -210,7 +224,12 @@ function Pessoas() {
   }
 
   function toggleAll() {
-    setChecked(allChecked ? new Set() : new Set(filtered.map((e) => e.id)));
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (allChecked) pageRows.forEach((e) => next.delete(e.id));
+      else pageRows.forEach((e) => next.add(e.id));
+      return next;
+    });
   }
 
   function rowsToExport(list: typeof filtered) {
@@ -305,11 +324,24 @@ function Pessoas() {
                     aria-label="Selecionar todos"
                   />
                 </TableHead>
-                <TableHead>Colaborador</TableHead>
-                <TableHead>Área / Cargo</TableHead>
-                <TableHead>Unidade</TableHead>
-                <TableHead>Equipamentos em uso</TableHead>
-                <TableHead>Situação</TableHead>
+                {(
+                  [
+                    ["colaborador", "Colaborador"],
+                    ["area", "Área / Cargo"],
+                    ["unidade", "Unidade"],
+                    ["equipamentos", "Equipamentos em uso"],
+                    ["situacao", "Situação"],
+                  ] as const
+                ).map(([columnKey, label]) => (
+                  <SortableHead
+                    key={columnKey}
+                    columnKey={columnKey}
+                    label={label}
+                    sortKey={table.sortKey}
+                    sortDir={table.sortDir}
+                    onToggle={table.toggleSort}
+                  />
+                ))}
                 <TableHead className="w-10" />
               </TableRow>
             </TableHeader>
@@ -343,7 +375,7 @@ function Pessoas() {
                   </TableCell>
                 </TableRow>
               )}
-              {filtered.map((e, index) => {
+              {pageRows.map((e, index) => {
                 const selected = selectedId === e.id;
                 return (
                   <TableRow
@@ -411,6 +443,18 @@ function Pessoas() {
             </TableBody>
           </Table>
         </div>
+        <TablePagination
+          className="-mx-4 mt-3 px-4"
+          noun="colaboradores"
+          total={table.total}
+          rangeStart={table.rangeStart}
+          rangeEnd={table.rangeEnd}
+          page={table.page}
+          pageCount={table.pageCount}
+          pageSize={table.pageSize}
+          onPageChange={table.setPage}
+          onPageSizeChange={table.setPageSize}
+        />
       </Card>
 
       <BulkActionBar

@@ -12,6 +12,8 @@ import {
 } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDateTime } from "@/lib/format";
+import { SortableHead, TablePagination } from "@/components/data-table-ui";
+import { useTableState } from "@/hooks/useTableState";
 
 export const Route = createFileRoute("/_authenticated/auditoria")({
   head: () => ({
@@ -42,6 +44,16 @@ function Auditoria() {
     },
   });
 
+  const table = useTableState(data, {
+    key: "auditoria",
+    accessors: {
+      data: (row) => row.created_at,
+      responsavel: (row) => row.actor_email,
+      acao: (row) => row.action,
+      registro: (row) => row.entity,
+    },
+  });
+
   return (
     <div>
       <PageHeader title="Auditoria" description="Últimas 300 ações registradas no sistema." />
@@ -49,10 +61,23 @@ function Auditoria() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Data</TableHead>
-              <TableHead>Responsável</TableHead>
-              <TableHead>Ação</TableHead>
-              <TableHead>Registro</TableHead>
+              {(
+                [
+                  ["data", "Data"],
+                  ["responsavel", "Responsável"],
+                  ["acao", "Ação"],
+                  ["registro", "Registro"],
+                ] as const
+              ).map(([columnKey, label]) => (
+                <SortableHead
+                  key={columnKey}
+                  columnKey={columnKey}
+                  label={label}
+                  sortKey={table.sortKey}
+                  sortDir={table.sortDir}
+                  onToggle={table.toggleSort}
+                />
+              ))}
               <TableHead>Detalhes</TableHead>
             </TableRow>
           </TableHeader>
@@ -64,14 +89,14 @@ function Auditoria() {
                 </TableCell>
               </TableRow>
             )}
-            {!isLoading && (data ?? []).length === 0 && (
+            {!isLoading && table.total === 0 && (
               <TableRow>
                 <TableCell colSpan={5} className="text-center text-muted-foreground">
                   Nenhuma ação registrada.
                 </TableCell>
               </TableRow>
             )}
-            {(data ?? []).map((row) => (
+            {table.pageRows.map((row) => (
               <TableRow key={row.id}>
                 <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
                   {formatDateTime(row.created_at)}
@@ -89,6 +114,18 @@ function Auditoria() {
             ))}
           </TableBody>
         </Table>
+        <TablePagination
+          className="-mx-4 mt-3 px-4"
+          noun="registros"
+          total={table.total}
+          rangeStart={table.rangeStart}
+          rangeEnd={table.rangeEnd}
+          page={table.page}
+          pageCount={table.pageCount}
+          pageSize={table.pageSize}
+          onPageChange={table.setPage}
+          onPageSizeChange={table.setPageSize}
+        />
       </Card>
     </div>
   );

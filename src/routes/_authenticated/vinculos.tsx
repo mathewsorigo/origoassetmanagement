@@ -38,6 +38,8 @@ import { useRoles, useSession, isOperator } from "@/hooks/useAuth";
 import { formatDate } from "@/lib/format";
 import { renderAgreement } from "@/lib/agreements";
 import { logAudit } from "@/lib/audit";
+import { SortableHead, TablePagination } from "@/components/data-table-ui";
+import { useTableState } from "@/hooks/useTableState";
 
 export const Route = createFileRoute("/_authenticated/vinculos")({
   head: () => ({
@@ -85,6 +87,20 @@ function Vinculos() {
         .order("assigned_at", { ascending: false });
       if (error) throw error;
       return data;
+    },
+  });
+
+  const table = useTableState(assignments, {
+    key: "vinculos",
+    accessors: {
+      colaborador: (a) => (a.employee as { full_name: string } | null)?.full_name ?? null,
+      equipamento: (a) => {
+        const asset = a.asset as { brand: string | null; model: string | null; serial_number: string } | null;
+        return asset ? `${asset.brand ?? ""} ${asset.model ?? ""}`.trim() || asset.serial_number : null;
+      },
+      entrega: (a) => a.assigned_at,
+      devolucao: (a) => a.returned_at,
+      situacao: (a) => a.status,
     },
   });
 
@@ -217,12 +233,31 @@ function Vinculos() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Colaborador</TableHead>
-              <TableHead>Equipamento</TableHead>
-              <TableHead>Entrega</TableHead>
-              <TableHead>Devolução</TableHead>
+              {(
+                [
+                  ["colaborador", "Colaborador"],
+                  ["equipamento", "Equipamento"],
+                  ["entrega", "Entrega"],
+                  ["devolucao", "Devolução"],
+                ] as const
+              ).map(([columnKey, label]) => (
+                <SortableHead
+                  key={columnKey}
+                  columnKey={columnKey}
+                  label={label}
+                  sortKey={table.sortKey}
+                  sortDir={table.sortDir}
+                  onToggle={table.toggleSort}
+                />
+              ))}
               <TableHead>Termo</TableHead>
-              <TableHead>Situação</TableHead>
+              <SortableHead
+                columnKey="situacao"
+                label="Situação"
+                sortKey={table.sortKey}
+                sortDir={table.sortDir}
+                onToggle={table.toggleSort}
+              />
               <TableHead />
             </TableRow>
           </TableHeader>
@@ -234,14 +269,14 @@ function Vinculos() {
                 </TableCell>
               </TableRow>
             )}
-            {!isLoading && (assignments ?? []).length === 0 && (
+            {!isLoading && table.total === 0 && (
               <TableRow>
                 <TableCell colSpan={7} className="text-center text-muted-foreground">
                   Nenhum vínculo registrado.
                 </TableCell>
               </TableRow>
             )}
-            {(assignments ?? []).map((a) => {
+            {table.pageRows.map((a) => {
               const employee = a.employee as { id: string; full_name: string } | null;
               const asset = a.asset as {
                 id: string;
@@ -302,6 +337,18 @@ function Vinculos() {
             })}
           </TableBody>
         </Table>
+        <TablePagination
+          className="-mx-4 mt-3 px-4"
+          noun="vínculos"
+          total={table.total}
+          rangeStart={table.rangeStart}
+          rangeEnd={table.rangeEnd}
+          page={table.page}
+          pageCount={table.pageCount}
+          pageSize={table.pageSize}
+          onPageChange={table.setPage}
+          onPageSizeChange={table.setPageSize}
+        />
       </Card>
 
       <Dialog open={open} onOpenChange={setOpen}>

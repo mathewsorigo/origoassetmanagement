@@ -10,10 +10,10 @@ import {
   QrCode,
   Tags,
   FileSpreadsheet,
-  ChevronLeft,
-  ChevronRight,
   Trash2,
 } from "lucide-react";
+import { SortableHead, TablePagination } from "@/components/data-table-ui";
+import { useTableState } from "@/hooks/useTableState";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
@@ -128,8 +128,6 @@ function Ativos() {
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [tagTarget, setTagTarget] = useState<string[] | null>(null);
   const [bulkDelete, setBulkDelete] = useState(false);
-  const [page, setPage] = useState(1);
-  const pageSize = 25;
   const [deleteTarget, setDeleteTarget] = useState<{
     id: string;
     title: string;
@@ -232,9 +230,17 @@ function Ativos() {
     });
   }, [assets, term, statusFilter, typeFilter, tagFilter, assetTagMap]);
 
-  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const currentPage = Math.min(page, pageCount);
-  const pageRows = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const table = useTableState(filtered, {
+    key: "ativos",
+    accessors: {
+      equipamento: (a) => `${a.brand ?? ""} ${a.model ?? ""}`.trim() || a.serial_number,
+      usuario: (a) => holderOf(a)?.full_name ?? null,
+      fornecedor: (a) => a.supplier,
+      locacao: (a) => a.lease_end,
+      situacao: (a) => assetStatusLabel[a.status],
+    },
+  });
+  const pageRows = table.pageRows;
   const allChecked = pageRows.length > 0 && pageRows.every((a) => checked.has(a.id));
 
   function toggleRow(id: string) {
@@ -442,11 +448,24 @@ function Ativos() {
                     aria-label="Selecionar todos"
                   />
                 </TableHead>
-                <TableHead>Equipamento</TableHead>
-                <TableHead>Usuário atual</TableHead>
-                <TableHead>Fornecedor</TableHead>
-                <TableHead>Locação</TableHead>
-                <TableHead>Situação</TableHead>
+                {(
+                  [
+                    ["equipamento", "Equipamento"],
+                    ["usuario", "Usuário atual"],
+                    ["fornecedor", "Fornecedor"],
+                    ["locacao", "Locação"],
+                    ["situacao", "Situação"],
+                  ] as const
+                ).map(([columnKey, label]) => (
+                  <SortableHead
+                    key={columnKey}
+                    columnKey={columnKey}
+                    label={label}
+                    sortKey={table.sortKey}
+                    sortDir={table.sortDir}
+                    onToggle={table.toggleSort}
+                  />
+                ))}
                 <TableHead className="w-10" />
               </TableRow>
             </TableHeader>
@@ -581,31 +600,18 @@ function Ativos() {
           </Table>
         </div>
 
-        {pageCount > 1 && (
-          <div className="mt-4 flex items-center justify-between gap-3 border-t pt-3">
-            <p className="text-xs text-muted-foreground">
-              Página {currentPage} de {pageCount}
-            </p>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={currentPage <= 1}
-                onClick={() => setPage(currentPage - 1)}
-              >
-                <ChevronLeft className="mr-1 size-4" /> Anterior
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={currentPage >= pageCount}
-                onClick={() => setPage(currentPage + 1)}
-              >
-                Próxima <ChevronRight className="ml-1 size-4" />
-              </Button>
-            </div>
-          </div>
-        )}
+        <TablePagination
+          className="-mx-4 mt-3 px-4"
+          noun="equipamentos"
+          total={table.total}
+          rangeStart={table.rangeStart}
+          rangeEnd={table.rangeEnd}
+          page={table.page}
+          pageCount={table.pageCount}
+          pageSize={table.pageSize}
+          onPageChange={table.setPage}
+          onPageSizeChange={table.setPageSize}
+        />
       </Card>
 
       <BulkActionBar
