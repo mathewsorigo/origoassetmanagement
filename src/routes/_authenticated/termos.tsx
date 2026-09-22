@@ -32,6 +32,8 @@ import { useRoles, useSession, isOperator } from "@/hooks/useAuth";
 import { formatDateTime } from "@/lib/format";
 import { logAudit } from "@/lib/audit";
 import { enviarParaAssinatura } from "@/lib/assinatura.functions";
+import { SortableHead, TablePagination } from "@/components/data-table-ui";
+import { useTableState } from "@/hooks/useTableState";
 
 export const Route = createFileRoute("/_authenticated/termos")({
   head: () => ({
@@ -73,6 +75,20 @@ function Termos() {
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
+    },
+  });
+
+  const table = useTableState(agreements, {
+    key: "termos",
+    accessors: {
+      colaborador: (a) => (a.employee as { full_name: string } | null)?.full_name ?? null,
+      equipamento: (a) => {
+        const asset = a.asset as { brand: string | null; model: string | null; serial_number: string } | null;
+        return asset ? `${asset.brand ?? ""} ${asset.model ?? ""}`.trim() || asset.serial_number : null;
+      },
+      envio: (a) => a.sent_at,
+      assinatura: (a) => a.signed_at,
+      situacao: (a) => a.status,
     },
   });
 
@@ -141,11 +157,24 @@ function Termos() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Colaborador</TableHead>
-              <TableHead>Equipamento</TableHead>
-              <TableHead>Envio</TableHead>
-              <TableHead>Assinatura</TableHead>
-              <TableHead>Situação</TableHead>
+              {(
+                [
+                  ["colaborador", "Colaborador"],
+                  ["equipamento", "Equipamento"],
+                  ["envio", "Envio"],
+                  ["assinatura", "Assinatura"],
+                  ["situacao", "Situação"],
+                ] as const
+              ).map(([columnKey, label]) => (
+                <SortableHead
+                  key={columnKey}
+                  columnKey={columnKey}
+                  label={label}
+                  sortKey={table.sortKey}
+                  sortDir={table.sortDir}
+                  onToggle={table.toggleSort}
+                />
+              ))}
               <TableHead />
             </TableRow>
           </TableHeader>
@@ -157,14 +186,14 @@ function Termos() {
                 </TableCell>
               </TableRow>
             )}
-            {!isLoading && (agreements ?? []).length === 0 && (
+            {!isLoading && table.total === 0 && (
               <TableRow>
                 <TableCell colSpan={6} className="text-center text-muted-foreground">
                   Nenhum termo gerado. Crie um vínculo em Vínculos.
                 </TableCell>
               </TableRow>
             )}
-            {(agreements ?? []).map((a) => {
+            {table.pageRows.map((a) => {
               const employee = a.employee as { full_name: string; email: string } | null;
               const asset = a.asset as {
                 serial_number: string;
@@ -239,6 +268,18 @@ function Termos() {
             })}
           </TableBody>
         </Table>
+        <TablePagination
+          className="-mx-4 mt-3 px-4"
+          noun="termos"
+          total={table.total}
+          rangeStart={table.rangeStart}
+          rangeEnd={table.rangeEnd}
+          page={table.page}
+          pageCount={table.pageCount}
+          pageSize={table.pageSize}
+          onPageChange={table.setPage}
+          onPageSizeChange={table.setPageSize}
+        />
       </Card>
 
       <Dialog open={!!preview} onOpenChange={(v) => !v && setPreview(null)}>
