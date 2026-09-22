@@ -1,10 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, UserSearch } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
+import { EmployeeDetailPanel } from "@/components/employee-detail-panel";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -73,6 +76,7 @@ function Pessoas() {
   const [term, setTerm] = useState("");
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ ...emptyForm });
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const { data: employees, isLoading } = useQuery({
     queryKey: ["employees"],
@@ -189,7 +193,11 @@ function Pessoas() {
           />
         </div>
 
-        <div className="mt-4 overflow-x-auto">
+        <div className="mt-3 text-xs text-muted-foreground">
+          {filtered.length} {filtered.length === 1 ? "colaborador" : "colaboradores"}
+        </div>
+
+        <div className="mt-3 overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -201,57 +209,95 @@ function Pessoas() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading && (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground">
-                    Carregando…
-                  </TableCell>
-                </TableRow>
-              )}
+              {isLoading &&
+                Array.from({ length: 5 }).map((_, i) => (
+                  <TableRow key={`s-${i}`}>
+                    {Array.from({ length: 5 }).map((__, j) => (
+                      <TableCell key={j}>
+                        <Skeleton className="h-4 w-full max-w-40" />
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
               {!isLoading && filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground">
-                    Nenhum colaborador encontrado.
+                  <TableCell colSpan={5} className="py-12">
+                    <div className="flex flex-col items-center gap-3 text-center">
+                      <span className="flex size-14 items-center justify-center rounded-2xl border border-dashed border-primary/30 bg-primary/5 text-primary">
+                        <UserSearch className="size-6" />
+                      </span>
+                      <div>
+                        <p className="font-display text-sm font-semibold">
+                          Nenhum colaborador encontrado
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Ajuste a busca ou cadastre uma nova pessoa.
+                        </p>
+                      </div>
+                    </div>
                   </TableCell>
                 </TableRow>
               )}
-              {filtered.map((e) => (
-                <TableRow key={e.id}>
-                  <TableCell>
-                    <Link
-                      to="/pessoas/$id"
-                      params={{ id: e.id }}
-                      className="font-medium hover:text-primary hover:underline"
-                    >
-                      {e.full_name}
-                    </Link>
-                    <p className="text-xs text-muted-foreground">{e.email}</p>
-                  </TableCell>
-                  <TableCell className="text-sm">
-                    {e.department ?? "—"}
-                    <p className="text-xs text-muted-foreground">{e.job_title ?? ""}</p>
-                  </TableCell>
-                  <TableCell className="text-sm">{e.unit ?? "—"}</TableCell>
-                  <TableCell className="text-sm">
-                    {activeAssets(e).length === 0 ? (
-                      <span className="text-muted-foreground">—</span>
-                    ) : (
-                      activeAssets(e).map((a, i) => (
-                        <p key={i} className="text-xs">
-                          {a.asset?.brand} {a.asset?.model} · {a.asset?.serial_number}
-                        </p>
-                      ))
+              {filtered.map((e, index) => {
+                const selected = selectedId === e.id;
+                return (
+                  <TableRow
+                    key={e.id}
+                    onClick={() => setSelectedId(e.id)}
+                    style={{ animationDelay: `${Math.min(index, 12) * 25}ms` }}
+                    className={cn(
+                      "cursor-pointer animate-in fade-in-0 slide-in-from-bottom-1 transition-colors",
+                      selected && "bg-primary/[0.07] hover:bg-primary/10",
                     )}
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge value={e.status} />
-                  </TableCell>
-                </TableRow>
-              ))}
+                  >
+                    <TableCell>
+                      <p
+                        className={cn(
+                          "font-medium transition-colors",
+                          selected && "text-primary",
+                        )}
+                      >
+                        {e.full_name}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{e.email}</p>
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {e.department ?? "—"}
+                      <p className="text-xs text-muted-foreground">{e.job_title ?? ""}</p>
+                    </TableCell>
+                    <TableCell className="text-sm">{e.unit ?? "—"}</TableCell>
+                    <TableCell className="text-sm">
+                      {activeAssets(e).length === 0 ? (
+                        <span className="text-muted-foreground">—</span>
+                      ) : (
+                        activeAssets(e).map((a, i) => (
+                          <p key={i} className="text-xs">
+                            {a.asset?.brand} {a.asset?.model} · {a.asset?.serial_number}
+                          </p>
+                        ))
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge value={e.status} />
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </div>
       </Card>
+
+      <EmployeeDetailPanel
+        employeeId={selectedId}
+        onOpenChange={(v) => !v && setSelectedId(null)}
+        onNavigate={(dir) => {
+          const i = filtered.findIndex((e) => e.id === selectedId);
+          if (i < 0) return;
+          const next = filtered[i + dir];
+          if (next) setSelectedId(next.id);
+        }}
+      />
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">

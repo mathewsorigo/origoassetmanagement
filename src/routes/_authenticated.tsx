@@ -1,5 +1,13 @@
 import { OrigoSimbolo } from "@/components/brand-logo";
-import { createFileRoute, Outlet, Link, useNavigate, useRouter } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Outlet,
+  Link,
+  useNavigate,
+  useRouter,
+  useRouterState,
+} from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
@@ -45,6 +53,20 @@ function AuthenticatedLayout() {
   const { data: roles } = useRoles(user);
   const { data: profile } = useProfile(user);
   const [open, setOpen] = useState(false);
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+
+  const { data: pendingCount = 0 } = useQuery({
+    queryKey: ["agreements-pending-count"],
+    enabled: !!session,
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("agreements")
+        .select("id", { count: "exact", head: true })
+        .in("status", ["rascunho", "enviado", "visualizado"]);
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
 
   useEffect(() => {
     if (!loading && !session) navigate({ to: "/auth", replace: true });
@@ -75,11 +97,11 @@ function AuthenticatedLayout() {
     <div className="min-h-screen bg-background lg:flex">
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 w-64 shrink-0 bg-sidebar text-sidebar-foreground transition-transform lg:static lg:translate-x-0",
+          "fixed inset-y-0 left-0 z-40 w-64 shrink-0 bg-sidebar text-sidebar-foreground shadow-[var(--shadow-elevated)] transition-transform duration-300 lg:static lg:translate-x-0 lg:shadow-none",
           open ? "translate-x-0" : "-translate-x-full",
         )}
       >
-        <div className="flex h-16 items-center gap-3 px-5">
+        <div className="flex h-16 items-center gap-3 border-b border-sidebar-border px-5">
           <OrigoSimbolo />
           <div className="leading-tight">
             <p className="font-display text-sm font-semibold">Órigo Asset Management</p>
@@ -93,11 +115,19 @@ function AuthenticatedLayout() {
               key={item.to}
               to={item.to}
               onClick={() => setOpen(false)}
-              activeProps={{ className: "bg-sidebar-accent text-sidebar-accent-foreground" }}
-              className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/85 transition-colors hover:bg-sidebar-accent/70"
+              activeProps={{
+                className:
+                  "bg-sidebar-accent text-sidebar-accent-foreground before:opacity-100 font-medium",
+              }}
+              className="group relative flex items-center gap-3 overflow-hidden rounded-lg px-3 py-2 text-sm text-sidebar-foreground/85 transition-all duration-200 before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-full before:bg-sidebar-primary before:opacity-0 before:transition-opacity hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground"
             >
-              <item.icon className="size-4" />
+              <item.icon className="size-4 transition-transform duration-200 group-hover:scale-110" />
               {item.label}
+              {item.to === "/termos" && pendingCount > 0 && (
+                <span className="ml-auto rounded-full bg-sidebar-primary px-1.5 py-0.5 text-[10px] font-semibold text-sidebar-primary-foreground">
+                  {pendingCount}
+                </span>
+              )}
             </Link>
           ))}
         </nav>
@@ -135,7 +165,7 @@ function AuthenticatedLayout() {
           </Button>
           <span className="font-display text-sm font-semibold">Órigo Ativos</span>
         </header>
-        <main className="min-w-0 flex-1 p-4 sm:p-6 lg:p-8">
+        <main key={pathname} className="min-w-0 flex-1 animate-in fade-in-50 slide-in-from-bottom-2 p-4 duration-300 sm:p-6 lg:p-8">
           <Outlet />
         </main>
       </div>

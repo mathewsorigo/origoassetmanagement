@@ -1,9 +1,32 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Laptop, Smartphone, FileSignature, AlertTriangle, CalendarClock } from "lucide-react";
+import {
+  Laptop,
+  Smartphone,
+  FileSignature,
+  AlertTriangle,
+  CalendarClock,
+  CheckCircle2,
+} from "lucide-react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
+import { StatCard } from "@/components/stat-card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
 import { assetStatusLabel, assetTypeLabel, formatDate } from "@/lib/format";
 
@@ -22,11 +45,41 @@ export const Route = createFileRoute("/_authenticated/painel")({
   component: Painel,
 });
 
+const statusColors: Record<string, string> = {
+  disponivel: "var(--info)",
+  em_uso: "var(--success)",
+  manutencao: "var(--warning)",
+  devolvido: "var(--muted-foreground)",
+  extraviado: "var(--destructive)",
+};
+
+function ChartTooltip({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean;
+  payload?: Array<{ name?: string; value?: number | string }>;
+  label?: string | number;
+}) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-lg border bg-popover px-3 py-2 text-xs shadow-[var(--shadow-elevated)]">
+      {label !== undefined && <p className="font-medium">{label}</p>}
+      {payload.map((p, i) => (
+        <p key={i} className="text-muted-foreground">
+          {p.name}: <span className="font-semibold text-foreground">{p.value}</span>
+        </p>
+      ))}
+    </div>
+  );
+}
+
 function Painel() {
   const { data, isLoading } = useQuery({
     queryKey: ["painel"],
     queryFn: async () => {
-      const [assets, employees, agreements, assignments] = await Promise.all([
+      const [assets, employees, agreements, assignments, timeline] = await Promise.all([
         supabase.from("assets").select("id,status,asset_type,lease_end,serial_number,brand,model"),
         supabase.from("employees").select("id,status"),
         supabase
@@ -42,6 +95,7 @@ function Painel() {
           .eq("status", "ativo")
           .order("assigned_at", { ascending: false })
           .limit(8),
+        supabase.from("assignments").select("id,assigned_at"),
       ]);
       if (assets.error) throw assets.error;
       return {
@@ -49,6 +103,7 @@ function Painel() {
         employees: employees.data ?? [],
         agreements: agreements.data ?? [],
         assignments: assignments.data ?? [],
+        timeline: timeline.data ?? [],
       };
     },
   });
@@ -58,18 +113,44 @@ function Painel() {
   const pendingAgreements = (data?.agreements ?? []).filter(
     (a) => a.status !== "assinado" && a.status !== "recusado",
   );
-  const soon = assets.filter((a) => {
-    if (!a.lease_end) return false;
-    const diff = new Date(a.lease_end).getTime() - Date.now();
-    return diff > 0 && diff < 1000 * 60 * 60 * 24 * 60;
-  });
+  const signedCount = (data?.agreements ?? []).filter((a) => a.status === "assinado").length;
 
-  const cards = [
-    { label: "Total de equipamentos", value: assets.length, icon: Laptop },
-    { label: "Em uso", value: count("em_uso"), icon: Smartphone },
-    { label: "Disponíveis", value: count("disponivel"), icon: Laptop },
-    { label: "Em manutenção", value: count("manutencao"), icon: AlertTriangle },
-  ];
+  const soon = assets
+    .filter((a) => {
+      if (!a.lease_end) return false;
+      const diff = new Date(a.lease_end).getTime() - Date.now();
+      return diff > 0 && diff < 1000 * 60 * 60 * 24 * 60;
+    })
+    .sort((a, b) => String(a.lease_end).localeCompare(String(b.lease_end)));
+
+  const statusData = Object.keys(assetStatusLabel)
+    .map((s) => ({ key: s, name: assetStatusLabel[s]!, value: count(s) }))
+    .filter((d) => d.value > 0);
+
+  const typeData = Object.keys(assetTypeLabel)
+    .map((t) => ({
+      name: assetTypeLabel[t]!,
+      total: assets.filter((a) => a.asset_type === t).length,
+    }))
+    .filter((d) => d.total > 0);
+
+  const months = Array.from({ length: 6 }).map((_, i) => {
+    const d = new Date();
+    d.setDate(1);
+    d.setMonth(d.getMonth() - (5 - i));
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    return {
+      key,
+      name: d.toLocaleDateString("pt-BR", { month: "short" }).replace(".", ""),
+      total: 0,
+    };
+  });
+  for (const row of data?.timeline ?? []) {
+    if (!row.assigned_at) continue;
+    const key = String(row.assigned_at).slice(0, 7);
+    const m = months.find((x) => x.key === key);
+    if (m) m.total += 1;
+  }
 
   return (
     <div>
@@ -79,39 +160,165 @@ function Painel() {
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {cards.map((c) => (
-          <Card key={c.label} className="shadow-[var(--shadow-card)]">
-            <CardContent className="flex items-center justify-between pt-6">
-              <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  {c.label}
-                </p>
-                <p className="mt-2 font-display text-3xl font-semibold">
-                  {isLoading ? "—" : c.value}
-                </p>
+        <StatCard
+          label="Total de equipamentos"
+          value={assets.length}
+          icon={Laptop}
+          loading={isLoading}
+          hint={`${data?.employees.length ?? 0} colaboradores cadastrados`}
+        />
+        <StatCard
+          label="Em uso"
+          value={count("em_uso")}
+          icon={Smartphone}
+          tone="success"
+          loading={isLoading}
+          hint={`${signedCount} termos assinados`}
+        />
+        <StatCard
+          label="Disponíveis"
+          value={count("disponivel")}
+          icon={CheckCircle2}
+          tone="info"
+          loading={isLoading}
+          hint="Prontos para entrega"
+        />
+        <StatCard
+          label="Em manutenção"
+          value={count("manutencao")}
+          icon={AlertTriangle}
+          tone="warning"
+          loading={isLoading}
+          hint={`${soon.length} locações vencendo`}
+        />
+      </div>
+
+      <div className="mt-6 grid gap-4 lg:grid-cols-3">
+        <Card className="shadow-[var(--shadow-card)]">
+          <CardHeader>
+            <CardTitle className="font-display text-base">Equipamentos por situação</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <Skeleton className="h-52 w-full" />
+            ) : statusData.length === 0 ? (
+              <p className="py-14 text-center text-sm text-muted-foreground">
+                Sem equipamentos cadastrados.
+              </p>
+            ) : (
+              <div className="h-52">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={statusData}
+                      dataKey="value"
+                      nameKey="name"
+                      innerRadius={52}
+                      outerRadius={80}
+                      paddingAngle={3}
+                      stroke="none"
+                    >
+                      {statusData.map((d) => (
+                        <Cell key={d.key} fill={statusColors[d.key] ?? "var(--chart-1)"} />
+                      ))}
+                    </Pie>
+                    <Tooltip content={<ChartTooltip />} />
+                  </PieChart>
+                </ResponsiveContainer>
               </div>
-              <div className="flex size-11 items-center justify-center rounded-xl bg-accent">
-                <c.icon className="size-5 text-primary" />
+            )}
+            <div className="mt-3 flex flex-wrap gap-3">
+              {statusData.map((d) => (
+                <span key={d.key} className="flex items-center gap-1.5 text-xs">
+                  <span
+                    className="size-2.5 rounded-full"
+                    style={{ background: statusColors[d.key] ?? "var(--chart-1)" }}
+                  />
+                  {d.name} · <span className="font-semibold">{d.value}</span>
+                </span>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-[var(--shadow-card)]">
+          <CardHeader>
+            <CardTitle className="font-display text-base">Por tipo de equipamento</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <Skeleton className="h-52 w-full" />
+            ) : (
+              <div className="h-52">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={typeData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                    <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={11} />
+                    <YAxis allowDecimals={false} tickLine={false} axisLine={false} fontSize={11} />
+                    <Tooltip content={<ChartTooltip />} cursor={{ fill: "var(--muted)" }} />
+                    <Bar
+                      dataKey="total"
+                      name="Equipamentos"
+                      fill="var(--chart-1)"
+                      radius={[6, 6, 0, 0]}
+                      maxBarSize={44}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
-            </CardContent>
-          </Card>
-        ))}
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-[var(--shadow-card)]">
+          <CardHeader>
+            <CardTitle className="font-display text-base">Vínculos por mês</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <Skeleton className="h-52 w-full" />
+            ) : (
+              <div className="h-52">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={months} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                    <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={11} />
+                    <YAxis allowDecimals={false} tickLine={false} axisLine={false} fontSize={11} />
+                    <Tooltip content={<ChartTooltip />} />
+                    <Line
+                      type="monotone"
+                      dataKey="total"
+                      name="Vínculos"
+                      stroke="var(--chart-2)"
+                      strokeWidth={2.5}
+                      dot={{ r: 3, fill: "var(--chart-2)" }}
+                      activeDot={{ r: 5 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
-        <Card>
+        <Card className="shadow-[var(--shadow-card)]">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="font-display text-base">Termos pendentes</CardTitle>
             <Link to="/termos" className="text-xs text-primary hover:underline">
               Ver todos
             </Link>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-2">
             {pendingAgreements.length === 0 && (
               <p className="text-sm text-muted-foreground">Nenhum termo pendente.</p>
             )}
             {pendingAgreements.map((a) => (
-              <div key={a.id} className="flex items-center justify-between gap-3 border-b pb-2">
+              <div
+                key={a.id}
+                className="flex items-center justify-between gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/40"
+              >
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">
                     {(a.employee as { full_name?: string } | null)?.full_name ?? "—"}
@@ -126,14 +333,14 @@ function Painel() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="shadow-[var(--shadow-card)]">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="font-display text-base">Últimos vínculos</CardTitle>
             <Link to="/vinculos" className="text-xs text-primary hover:underline">
               Ver todos
             </Link>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-2">
             {(data?.assignments ?? []).length === 0 && (
               <p className="text-sm text-muted-foreground">Nenhum vínculo ativo.</p>
             )}
@@ -144,7 +351,10 @@ function Painel() {
                 model?: string;
               } | null;
               return (
-                <div key={a.id} className="flex items-center justify-between gap-3 border-b pb-2">
+                <div
+                  key={a.id}
+                  className="flex items-center justify-between gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/40"
+                >
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">
                       {(a.employee as { full_name?: string } | null)?.full_name ?? "—"}
@@ -162,7 +372,7 @@ function Painel() {
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-2">
+        <Card className="shadow-[var(--shadow-card)] lg:col-span-2">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 font-display text-base">
               <CalendarClock className="size-4 text-primary" /> Locações vencendo em 60 dias
@@ -172,28 +382,46 @@ function Painel() {
             {soon.length === 0 ? (
               <p className="text-sm text-muted-foreground">Nenhuma locação vencendo no período.</p>
             ) : (
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {soon.map((a) => (
-                  <div key={a.id} className="rounded-lg border p-3">
-                    <p className="text-sm font-medium">
-                      {a.brand} {a.model}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {assetTypeLabel[a.asset_type]} · {a.serial_number}
-                    </p>
-                    <p className="mt-1 text-xs text-warning-foreground">
-                      Vence em {formatDate(a.lease_end)} · {assetStatusLabel[a.status]}
-                    </p>
-                  </div>
-                ))}
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {soon.map((a) => {
+                  const days = Math.max(
+                    0,
+                    Math.ceil(
+                      (new Date(a.lease_end!).getTime() - Date.now()) / (1000 * 60 * 60 * 24),
+                    ),
+                  );
+                  const pct = Math.min(100, Math.max(4, ((60 - days) / 60) * 100));
+                  return (
+                    <div
+                      key={a.id}
+                      className="rounded-xl border p-3 transition-shadow hover:shadow-[var(--shadow-card)]"
+                    >
+                      <p className="truncate text-sm font-medium">
+                        {`${a.brand ?? ""} ${a.model ?? ""}`.trim() || a.serial_number}
+                      </p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {assetTypeLabel[a.asset_type]} · {a.serial_number}
+                      </p>
+                      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-warning to-destructive transition-all duration-700"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                      <p className="mt-1.5 text-xs text-muted-foreground">
+                        Vence em {days} dia{days === 1 ? "" : "s"} · {formatDate(a.lease_end)}
+                      </p>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </CardContent>
         </Card>
       </div>
 
-      <div className="mt-6 flex items-center gap-2 rounded-xl border bg-card p-4 text-sm text-muted-foreground">
-        <FileSignature className="size-4 text-primary" />
+      <div className="mt-6 flex items-center gap-2 rounded-xl border bg-gradient-to-r from-primary/8 via-card to-card p-4 text-sm text-muted-foreground">
+        <FileSignature className="size-4 shrink-0 text-primary" />
         Ao vincular um ativo a um colaborador, o termo de uso é gerado automaticamente e fica
         disponível em Termos para envio de assinatura.
       </div>
