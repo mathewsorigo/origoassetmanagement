@@ -36,6 +36,13 @@
       "when": 1790101553649,
       "tag": "0004_settings_lists_and_profile_status",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790104934546,
+      "tag": "0005_inventario_e_checklists",
+      "breakpoints": true
     }
   ]
 }
