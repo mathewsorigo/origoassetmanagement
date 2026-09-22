@@ -58,12 +58,39 @@ function Painel() {
   const { data, isLoading } = useQuery({
     queryKey: ["painel"],
     queryFn: async () => {
-      const [assets, employees, agreements, assignments, timeline] = await Promise.all([
-        supabase.from("assets").select("id,status,asset_type,lease_end,serial_number,brand,model"),
-        supabase.from("employees").select("id,status"),
+      const CHUNK = 1000;
+      async function fetchAll<T>(
+        run: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
+      ) {
+        const all: T[] = [];
+        for (let from = 0; ; from += CHUNK) {
+          const { data, error } = await run(from, from + CHUNK - 1);
+          if (error) throw error;
+          const rows = data ?? [];
+          all.push(...rows);
+          if (rows.length < CHUNK) break;
+        }
+        return all;
+      }
+
+      const [assets, employees, timeline, agreements, assignments, signed] = await Promise.all([
+        fetchAll((from, to) =>
+          supabase
+            .from("assets")
+            .select("id,status,asset_type,lease_end,serial_number,brand,model")
+            .order("id")
+            .range(from, to),
+        ),
+        fetchAll((from, to) =>
+          supabase.from("employees").select("id,status").order("id").range(from, to),
+        ),
+        fetchAll((from, to) =>
+          supabase.from("assignments").select("id,assigned_at").order("id").range(from, to),
+        ),
         supabase
           .from("agreements")
           .select("id,status,created_at,employee:employees(full_name),asset:assets(serial_number)")
+          .not("status", "in", "(assinado,recusado)")
           .order("created_at", { ascending: false })
           .limit(8),
         supabase
@@ -74,25 +101,26 @@ function Painel() {
           .eq("status", "ativo")
           .order("assigned_at", { ascending: false })
           .limit(8),
-        supabase.from("assignments").select("id,assigned_at"),
+        supabase
+          .from("agreements")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "assinado"),
       ]);
-      if (assets.error) throw assets.error;
       return {
-        assets: assets.data ?? [],
-        employees: employees.data ?? [],
+        assets,
+        employees,
+        timeline,
         agreements: agreements.data ?? [],
         assignments: assignments.data ?? [],
-        timeline: timeline.data ?? [],
+        signedCount: signed.count ?? 0,
       };
     },
   });
 
   const assets = data?.assets ?? [];
   const count = (status: string) => assets.filter((a) => a.status === status).length;
-  const pendingAgreements = (data?.agreements ?? []).filter(
-    (a) => a.status !== "assinado" && a.status !== "recusado",
-  );
-  const signedCount = (data?.agreements ?? []).filter((a) => a.status === "assinado").length;
+  const pendingAgreements = data?.agreements ?? [];
+  const signedCount = data?.signedCount ?? 0;
 
   const soon = assets
     .filter((a) => {
