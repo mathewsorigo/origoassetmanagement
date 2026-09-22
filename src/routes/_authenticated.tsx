@@ -46,6 +46,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useProfile, useRoles, useSession, isManager, isOperator, isAdmin } from "@/hooks/useAuth";
 import { roleLabel } from "@/lib/format";
 import { rememberPendingQr } from "@/lib/pending-qr";
+import { setAuthNotice } from "@/lib/auth-notice";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -121,6 +122,7 @@ function AuthenticatedLayout() {
       await queryClient.cancelQueries();
       queryClient.clear();
       await supabase.auth.signOut();
+      setAuthNotice(reason);
       toast.error("Acesso não autorizado", { description: reason });
       navigate({ to: "/auth", replace: true });
     })();

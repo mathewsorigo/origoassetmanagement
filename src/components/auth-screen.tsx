@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { takePendingQr } from "@/lib/pending-qr";
+import { readAuthErrorFromUrl, takeAuthNotice } from "@/lib/auth-notice";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { Loader2, ShieldCheck, FileSignature, QrCode, Monitor } from "lucide-react";
+import { Loader2, ShieldCheck, ShieldAlert, FileSignature, QrCode, Monitor } from "lucide-react";
 import { OrigoLogo } from "@/components/brand-logo";
 import { Button } from "@/components/ui/button";
 
@@ -90,6 +91,15 @@ export function AuthScreen() {
   const navigate = useNavigate();
   const { session, loading } = useSession();
   const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fromUrl = readAuthErrorFromUrl();
+    const fromApp = takeAuthNotice();
+    const message = fromUrl ?? fromApp;
+    if (message) setNotice(message);
+  }, []);
+
 
 
   const goToApp = useCallback(() => {
@@ -135,6 +145,16 @@ export function AuthScreen() {
             administrador.
           </p>
         </div>
+
+        {notice && (
+          <div
+            role="alert"
+            className="mb-5 flex items-start gap-3 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
+          >
+            <ShieldAlert className="mt-0.5 size-4 shrink-0" />
+            <span>{notice}</span>
+          </div>
+        )}
 
         <Button
           variant="outline"

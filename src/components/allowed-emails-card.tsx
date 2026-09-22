@@ -97,6 +97,8 @@ export function AllowedEmailsCard() {
         <CardDescription>
           Só quem estiver nesta lista consegue acessar, e apenas com e-mail @{ALLOWED_EMAIL_DOMAIN}.
           Qualquer outra conta é recusada no momento do login, mesmo pelo botão da Microsoft.
+          Libere o e-mail <strong>antes</strong> de pedir para a pessoa entrar: quem tentar sem
+          liberação recebe um aviso na tela de login e aparece aqui em "Tentativas recusadas".
         </CardDescription>
       </div>
 

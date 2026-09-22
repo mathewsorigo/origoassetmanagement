@@ -337,10 +337,70 @@ export const addAllowedEmail = createServerFn({ method: "POST" })
       { onConflict: "email" },
     );
     if (error) throw new Error(error.message);
+
+    // Se a pessoa já tentou entrar antes da liberação, a conta existe sem papéis:
+    // concede os papéis agora e reativa o perfil.
+    const { data: existing } = await db
+      .from("profiles")
+      .select("id")
+      .eq("email", data.email)
+      .maybeSingle();
+    if (existing?.id) {
+      await db.from("profiles").update({ status: "ativo" }).eq("id", existing.id);
+      await db
+        .from("user_roles")
+        .insert(roles.map((role) => ({ user_id: existing.id, role: role as never })));
+    }
+    await db
+      .from("access_denied_attempts")
+      .update({ resolved_at: new Date().toISOString() })
+      .eq("email", data.email);
+
     await writeAudit(context.userId, context.claims?.email ?? null, "liberar_email", null, {
       email: data.email,
       roles,
     });
+    return { ok: true };
+  });
+
+export type DeniedAttempt = {
+  id: string;
+  email: string;
+  full_name: string | null;
+  attempts: number;
+  last_attempt_at: string;
+};
+
+export const listDeniedAttempts = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<DeniedAttempt[]> => {
+    await assertAdmin(context as never);
+    const db = await admin();
+    const { data } = await db
+      .from("access_denied_attempts")
+      .select("id, email, full_name, attempts, last_attempt_at")
+      .is("resolved_at", null)
+      .order("last_attempt_at", { ascending: false });
+    return (data ?? []).map((r) => ({
+      id: r.id,
+      email: r.email,
+      full_name: r.full_name ?? null,
+      attempts: r.attempts,
+      last_attempt_at: r.last_attempt_at,
+    }));
+  });
+
+export const dismissDeniedAttempt = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { id: string }) => ({ id: input.id }))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context as never);
+    const db = await admin();
+    const { error } = await db
+      .from("access_denied_attempts")
+      .update({ resolved_at: new Date().toISOString() })
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
     return { ok: true };
   });
 
