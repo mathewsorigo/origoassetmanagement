@@ -18,6 +18,7 @@ import {
   Upload,
   Plug,
   Settings,
+  ShieldCheck,
   ScrollText,
   LogOut,
   Menu,
@@ -55,7 +56,8 @@ const navItems = [
   { to: "/termos", label: "Termos", icon: FileSignature, need: "any" },
   { to: "/importacao", label: "Importar", icon: Upload, need: "operator" },
   { to: "/integracoes", label: "Integrar", icon: Plug, need: "manager" },
-  { to: "/administracao", label: "Admin", icon: Settings, need: "admin" },
+  { to: "/administracao", label: "Acessos", icon: ShieldCheck, need: "admin" },
+  { to: "/configuracoes", label: "Config.", icon: Settings, need: "any" },
   { to: "/auditoria", label: "Auditoria", icon: ScrollText, need: "manager" },
 ] as const;
 
@@ -242,9 +244,12 @@ function AuthenticatedLayout() {
                 <DropdownMenuItem onClick={() => navigate({ to: "/painel" })}>
                   <LayoutDashboard className="mr-2 size-4" /> Painel
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate({ to: "/configuracoes" })}>
+                  <Settings className="mr-2 size-4" /> Configurações
+                </DropdownMenuItem>
                 {isAdmin(roles) && (
                   <DropdownMenuItem onClick={() => navigate({ to: "/administracao" })}>
-                    <Settings className="mr-2 size-4" /> Administração
+                    <ShieldCheck className="mr-2 size-4" /> Acessos
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />
@@ -256,10 +261,7 @@ function AuthenticatedLayout() {
           </div>
         </header>
 
-        <main
-          key={pathname}
-          className="min-w-0 flex-1 animate-in fade-in-50 slide-in-from-bottom-2 p-4 duration-300 sm:p-6 lg:p-8"
-        >
+        <main className="min-w-0 flex-1 p-4 sm:p-6 lg:p-8">
           <Outlet />
         </main>
       </div>

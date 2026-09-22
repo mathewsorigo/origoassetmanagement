@@ -127,6 +127,24 @@ export type Database = {
           },
         ]
       }
+      app_settings: {
+        Row: {
+          key: string
+          updated_at: string
+          value: Json
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          value?: Json
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          value?: Json
+        }
+        Relationships: []
+      }
       asset_tags: {
         Row: {
           asset_id: string
@@ -319,6 +337,27 @@ export type Database = {
           entity?: string
           entity_id?: string | null
           id?: string
+        }
+        Relationships: []
+      }
+      departments: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name?: string
         }
         Relationships: []
       }
@@ -574,6 +613,27 @@ export type Database = {
         }
         Relationships: []
       }
+      locations: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -581,6 +641,11 @@ export type Database = {
           email: string | null
           full_name: string | null
           id: string
+          invited_at: string | null
+          job_title: string | null
+          last_sign_in_at: string | null
+          phone: string | null
+          status: Database["public"]["Enums"]["profile_status"]
           updated_at: string
         }
         Insert: {
@@ -589,6 +654,11 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id: string
+          invited_at?: string | null
+          job_title?: string | null
+          last_sign_in_at?: string | null
+          phone?: string | null
+          status?: Database["public"]["Enums"]["profile_status"]
           updated_at?: string
         }
         Update: {
@@ -597,6 +667,11 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id?: string
+          invited_at?: string | null
+          job_title?: string | null
+          last_sign_in_at?: string | null
+          phone?: string | null
+          status?: Database["public"]["Enums"]["profile_status"]
           updated_at?: string
         }
         Relationships: []
@@ -643,6 +718,27 @@ export type Database = {
         }
         Relationships: []
       }
+      vendors: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -676,6 +772,7 @@ export type Database = {
       asset_type: "notebook" | "celular" | "monitor" | "acessorio" | "outro"
       assignment_status: "ativo" | "encerrado"
       employee_status: "ativo" | "inativo" | "afastado"
+      profile_status: "ativo" | "convidado" | "desativado"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -822,6 +919,7 @@ export const Constants = {
       asset_type: ["notebook", "celular", "monitor", "acessorio", "outro"],
       assignment_status: ["ativo", "encerrado"],
       employee_status: ["ativo", "inativo", "afastado"],
+      profile_status: ["ativo", "convidado", "desativado"],
     },
   },
 } as const

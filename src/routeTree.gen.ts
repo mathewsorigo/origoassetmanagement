@@ -12,9 +12,11 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as DefinirSenhaRouteImport } from './routes/definir-senha'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as AuthenticatedAdministracaoRouteImport } from './routes/_authenticated/administracao'
 import { Route as AuthenticatedAuditoriaRouteImport } from './routes/_authenticated/auditoria'
+import { Route as AuthenticatedConfiguracoesRouteImport } from './routes/_authenticated/configuracoes'
 import { Route as AuthenticatedImportacaoRouteImport } from './routes/_authenticated/importacao'
 import { Route as AuthenticatedIntegracoesRouteImport } from './routes/_authenticated/integracoes'
 import { Route as AuthenticatedPainelRouteImport } from './routes/_authenticated/painel'
@@ -40,6 +42,11 @@ const AuthRoute = AuthRouteImport.update({
   path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DefinirSenhaRoute = DefinirSenhaRouteImport.update({
+  id: '/definir-senha',
+  path: '/definir-senha',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
   path: '/reset-password',
@@ -56,6 +63,12 @@ const AuthenticatedAuditoriaRoute = AuthenticatedAuditoriaRouteImport.update({
   path: '/auditoria',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedConfiguracoesRoute =
+  AuthenticatedConfiguracoesRouteImport.update({
+    id: '/configuracoes',
+    path: '/configuracoes',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedImportacaoRoute = AuthenticatedImportacaoRouteImport.update({
   id: '/importacao',
   path: '/importacao',
@@ -114,9 +127,11 @@ const ApiPublicHermesAssinaturaRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/definir-senha': typeof DefinirSenhaRoute
   '/reset-password': typeof ResetPasswordRoute
   '/administracao': typeof AuthenticatedAdministracaoRoute
   '/auditoria': typeof AuthenticatedAuditoriaRoute
+  '/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/importacao': typeof AuthenticatedImportacaoRoute
   '/integracoes': typeof AuthenticatedIntegracoesRoute
   '/painel': typeof AuthenticatedPainelRoute
@@ -131,9 +146,11 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/definir-senha': typeof DefinirSenhaRoute
   '/reset-password': typeof ResetPasswordRoute
   '/administracao': typeof AuthenticatedAdministracaoRoute
   '/auditoria': typeof AuthenticatedAuditoriaRoute
+  '/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/importacao': typeof AuthenticatedImportacaoRoute
   '/integracoes': typeof AuthenticatedIntegracoesRoute
   '/painel': typeof AuthenticatedPainelRoute
@@ -150,9 +167,11 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/auth': typeof AuthRoute
+  '/definir-senha': typeof DefinirSenhaRoute
   '/reset-password': typeof ResetPasswordRoute
   '/_authenticated/administracao': typeof AuthenticatedAdministracaoRoute
   '/_authenticated/auditoria': typeof AuthenticatedAuditoriaRoute
+  '/_authenticated/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/_authenticated/importacao': typeof AuthenticatedImportacaoRoute
   '/_authenticated/integracoes': typeof AuthenticatedIntegracoesRoute
   '/_authenticated/painel': typeof AuthenticatedPainelRoute
@@ -169,9 +188,11 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/definir-senha'
     | '/reset-password'
     | '/administracao'
     | '/auditoria'
+    | '/configuracoes'
     | '/importacao'
     | '/integracoes'
     | '/painel'
@@ -186,9 +207,11 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/definir-senha'
     | '/reset-password'
     | '/administracao'
     | '/auditoria'
+    | '/configuracoes'
     | '/importacao'
     | '/integracoes'
     | '/painel'
@@ -204,9 +227,11 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/auth'
+    | '/definir-senha'
     | '/reset-password'
     | '/_authenticated/administracao'
     | '/_authenticated/auditoria'
+    | '/_authenticated/configuracoes'
     | '/_authenticated/importacao'
     | '/_authenticated/integracoes'
     | '/_authenticated/painel'
@@ -223,6 +248,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   AuthRoute: typeof AuthRoute
+  DefinirSenhaRoute: typeof DefinirSenhaRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   ApiPublicHermesAssinaturaRoute: typeof ApiPublicHermesAssinaturaRoute
 }
@@ -250,6 +276,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/definir-senha': {
+      id: '/definir-senha'
+      path: '/definir-senha'
+      fullPath: '/definir-senha'
+      preLoaderRoute: typeof DefinirSenhaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/reset-password': {
       id: '/reset-password'
       path: '/reset-password'
@@ -269,6 +302,13 @@ declare module '@tanstack/react-router' {
       path: '/auditoria'
       fullPath: '/auditoria'
       preLoaderRoute: typeof AuthenticatedAuditoriaRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/configuracoes': {
+      id: '/_authenticated/configuracoes'
+      path: '/configuracoes'
+      fullPath: '/configuracoes'
+      preLoaderRoute: typeof AuthenticatedConfiguracoesRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/importacao': {
@@ -347,6 +387,7 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedRouteChildren {
   AuthenticatedAdministracaoRoute: typeof AuthenticatedAdministracaoRoute
   AuthenticatedAuditoriaRoute: typeof AuthenticatedAuditoriaRoute
+  AuthenticatedConfiguracoesRoute: typeof AuthenticatedConfiguracoesRoute
   AuthenticatedImportacaoRoute: typeof AuthenticatedImportacaoRoute
   AuthenticatedIntegracoesRoute: typeof AuthenticatedIntegracoesRoute
   AuthenticatedPainelRoute: typeof AuthenticatedPainelRoute
@@ -361,6 +402,7 @@ interface AuthenticatedRouteChildren {
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdministracaoRoute: AuthenticatedAdministracaoRoute,
   AuthenticatedAuditoriaRoute: AuthenticatedAuditoriaRoute,
+  AuthenticatedConfiguracoesRoute: AuthenticatedConfiguracoesRoute,
   AuthenticatedImportacaoRoute: AuthenticatedImportacaoRoute,
   AuthenticatedIntegracoesRoute: AuthenticatedIntegracoesRoute,
   AuthenticatedPainelRoute: AuthenticatedPainelRoute,
@@ -380,6 +422,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   AuthRoute: AuthRoute,
+  DefinirSenhaRoute: DefinirSenhaRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   ApiPublicHermesAssinaturaRoute: ApiPublicHermesAssinaturaRoute,
 }

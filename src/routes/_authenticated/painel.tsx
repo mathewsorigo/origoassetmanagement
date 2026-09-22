@@ -8,20 +8,17 @@ import {
   CalendarClock,
   CheckCircle2,
 } from "lucide-react";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Line,
-  LineChart,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { lazy, Suspense } from "react";
+
+const StatusDonut = lazy(() =>
+  import("@/components/painel-charts").then((m) => ({ default: m.StatusDonut })),
+);
+const TypeBars = lazy(() =>
+  import("@/components/painel-charts").then((m) => ({ default: m.TypeBars })),
+);
+const MonthlyLine = lazy(() =>
+  import("@/components/painel-charts").then((m) => ({ default: m.MonthlyLine })),
+);
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
@@ -53,26 +50,8 @@ const statusColors: Record<string, string> = {
   extraviado: "var(--destructive)",
 };
 
-function ChartTooltip({
-  active,
-  payload,
-  label,
-}: {
-  active?: boolean;
-  payload?: Array<{ name?: string; value?: number | string }>;
-  label?: string | number;
-}) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="rounded-lg border bg-popover px-3 py-2 text-xs shadow-[var(--shadow-elevated)]">
-      {label !== undefined && <p className="font-medium">{label}</p>}
-      {payload.map((p, i) => (
-        <p key={i} className="text-muted-foreground">
-          {p.name}: <span className="font-semibold text-foreground">{p.value}</span>
-        </p>
-      ))}
-    </div>
-  );
+function ChartFallback() {
+  return <Skeleton className="h-52 w-full" />;
 }
 
 function Painel() {
@@ -206,26 +185,9 @@ function Painel() {
                 Sem equipamentos cadastrados.
               </p>
             ) : (
-              <div className="h-52">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={statusData}
-                      dataKey="value"
-                      nameKey="name"
-                      innerRadius={52}
-                      outerRadius={80}
-                      paddingAngle={3}
-                      stroke="none"
-                    >
-                      {statusData.map((d) => (
-                        <Cell key={d.key} fill={statusColors[d.key] ?? "var(--chart-1)"} />
-                      ))}
-                    </Pie>
-                    <Tooltip content={<ChartTooltip />} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
+              <Suspense fallback={<ChartFallback />}>
+                <StatusDonut data={statusData} colors={statusColors} />
+              </Suspense>
             )}
             <div className="mt-3 flex flex-wrap gap-3">
               {statusData.map((d) => (
@@ -249,23 +211,9 @@ function Painel() {
             {isLoading ? (
               <Skeleton className="h-52 w-full" />
             ) : (
-              <div className="h-52">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={typeData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                    <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={11} />
-                    <YAxis allowDecimals={false} tickLine={false} axisLine={false} fontSize={11} />
-                    <Tooltip content={<ChartTooltip />} cursor={{ fill: "var(--muted)" }} />
-                    <Bar
-                      dataKey="total"
-                      name="Equipamentos"
-                      fill="var(--chart-1)"
-                      radius={[6, 6, 0, 0]}
-                      maxBarSize={44}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+              <Suspense fallback={<ChartFallback />}>
+                <TypeBars data={typeData} />
+              </Suspense>
             )}
           </CardContent>
         </Card>
@@ -278,25 +226,9 @@ function Painel() {
             {isLoading ? (
               <Skeleton className="h-52 w-full" />
             ) : (
-              <div className="h-52">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={months} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                    <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={11} />
-                    <YAxis allowDecimals={false} tickLine={false} axisLine={false} fontSize={11} />
-                    <Tooltip content={<ChartTooltip />} />
-                    <Line
-                      type="monotone"
-                      dataKey="total"
-                      name="Vínculos"
-                      stroke="var(--chart-2)"
-                      strokeWidth={2.5}
-                      dot={{ r: 3, fill: "var(--chart-2)" }}
-                      activeDot={{ r: 5 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
+              <Suspense fallback={<ChartFallback />}>
+                <MonthlyLine data={months} />
+              </Suspense>
             )}
           </CardContent>
         </Card>

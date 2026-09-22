@@ -28,6 +28,8 @@ export function useRoles(user: User | null) {
   return useQuery({
     queryKey: ["roles", user?.id],
     enabled: !!user,
+    staleTime: 15 * 60 * 1000,
+    gcTime: 60 * 60 * 1000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("user_roles")
@@ -43,6 +45,8 @@ export function useProfile(user: User | null) {
   return useQuery({
     queryKey: ["profile", user?.id],
     enabled: !!user,
+    staleTime: 15 * 60 * 1000,
+    gcTime: 60 * 60 * 1000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("profiles")

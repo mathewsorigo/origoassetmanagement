@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 import { useSession } from "@/hooks/useAuth";
@@ -18,7 +17,6 @@ export function AuthScreen() {
   const [busy, setBusy] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [fullName, setFullName] = useState("");
 
   useEffect(() => {
     if (!loading && session) navigate({ to: "/painel", replace: true });
@@ -31,31 +29,6 @@ export function AuthScreen() {
     setBusy(false);
     if (error) {
       toast.error("Não foi possível entrar", { description: error.message });
-      return;
-    }
-    navigate({ to: "/painel", replace: true });
-  }
-
-  async function handleSignUp(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: window.location.origin,
-        data: { full_name: fullName },
-      },
-    });
-    setBusy(false);
-    if (error) {
-      toast.error("Não foi possível criar a conta", { description: error.message });
-      return;
-    }
-    if (!data.session) {
-      toast.success("Conta criada", {
-        description: "Confirme o e-mail enviado para concluir o primeiro acesso.",
-      });
       return;
     }
     navigate({ to: "/painel", replace: true });
@@ -81,13 +54,15 @@ export function AuthScreen() {
       return;
     }
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
+      redirectTo: `${window.location.origin}/definir-senha`,
     });
     if (error) {
       toast.error("Não foi possível enviar o link", { description: error.message });
       return;
     }
-    toast.success("Link enviado", { description: "Confira sua caixa de entrada." });
+    toast.success("Link enviado", {
+      description: "Confira sua caixa de entrada e siga o link para criar uma nova senha.",
+    });
   }
 
   return (
@@ -121,98 +96,41 @@ export function AuthScreen() {
               <span className="h-px flex-1 bg-border" />
             </div>
 
-            <Tabs defaultValue="login">
-              <TabsList className="w-full">
-                <TabsTrigger value="login" className="flex-1">
-                  Entrar
-                </TabsTrigger>
-                <TabsTrigger value="signup" className="flex-1">
-                  Primeiro acesso
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="login">
-                <form className="space-y-4" onSubmit={handleLogin}>
-                  <div className="space-y-2">
-                    <Label htmlFor="email">E-mail</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      autoComplete="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Senha</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      autoComplete="current-password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <Button type="submit" className="w-full" disabled={busy}>
-                    {busy && <Loader2 className="mr-2 size-4 animate-spin" />}
-                    Entrar
-                  </Button>
-                  <button
-                    type="button"
-                    onClick={handleReset}
-                    className="w-full text-center text-xs text-muted-foreground underline-offset-4 hover:underline"
-                  >
-                    Esqueci minha senha
-                  </button>
-                </form>
-              </TabsContent>
-
-              <TabsContent value="signup">
-                <form className="space-y-4" onSubmit={handleSignUp}>
-                  <p className="rounded-md bg-muted p-3 text-xs text-muted-foreground">
-                    O primeiro cadastro do sistema recebe o papel de administrador. Os demais
-                    acessos devem ser criados dentro de Administração.
-                  </p>
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Nome completo</Label>
-                    <Input
-                      id="name"
-                      value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="email2">E-mail corporativo</Label>
-                    <Input
-                      id="email2"
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="password2">Senha</Label>
-                    <Input
-                      id="password2"
-                      type="password"
-                      autoComplete="new-password"
-                      minLength={8}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <Button type="submit" className="w-full" disabled={busy}>
-                    {busy && <Loader2 className="mr-2 size-4 animate-spin" />}
-                    Criar conta
-                  </Button>
-                </form>
-              </TabsContent>
-            </Tabs>
+            <form className="space-y-4" onSubmit={handleLogin}>
+              <div className="space-y-2">
+                <Label htmlFor="email">E-mail</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Senha</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </div>
+              <Button type="submit" className="w-full" disabled={busy}>
+                {busy && <Loader2 className="mr-2 size-4 animate-spin" />}
+                Entrar
+              </Button>
+              <button
+                type="button"
+                onClick={handleReset}
+                className="w-full text-center text-xs text-muted-foreground underline-offset-4 hover:underline"
+              >
+                Esqueci minha senha
+              </button>
+            </form>
           </CardContent>
         </Card>
 
