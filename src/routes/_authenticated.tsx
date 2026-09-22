@@ -99,6 +99,42 @@ function AuthenticatedLayout() {
     }
   }, [loading, session, navigate]);
 
+  // Só entram contas @origoenergia.com.br previamente liberadas e ativas.
+  useEffect(() => {
+    if (loading || !session || !user) return;
+    if (!rolesQuery.isFetched || !profileQuery.isFetched) return;
+
+    const email = (user.email ?? "").toLowerCase();
+    const wrongDomain = !email.endsWith("@origoenergia.com.br");
+    const noAccess = (rolesQuery.data ?? []).length === 0;
+    const disabled = profileQuery.data?.status === "desativado";
+    if (!wrongDomain && !noAccess && !disabled) return;
+
+    const reason = wrongDomain
+      ? "Use sua conta corporativa @origoenergia.com.br."
+      : disabled
+        ? "Sua conta está desativada. Fale com um administrador."
+        : "Seu e-mail ainda não foi liberado por um administrador.";
+
+    void (async () => {
+      await queryClient.cancelQueries();
+      queryClient.clear();
+      await supabase.auth.signOut();
+      toast.error("Acesso não autorizado", { description: reason });
+      navigate({ to: "/auth", replace: true });
+    })();
+  }, [
+    loading,
+    session,
+    user,
+    rolesQuery.isFetched,
+    rolesQuery.data,
+    profileQuery.isFetched,
+    profileQuery.data,
+    queryClient,
+    navigate,
+  ]);
+
   async function signOut() {
     await queryClient.cancelQueries();
     queryClient.clear();
