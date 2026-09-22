@@ -1,0 +1,246 @@
+import { createServerFn } from "@tanstack/react-start";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+
+export type AdminRole = "admin" | "ti" | "gestor" | "colaborador";
+const ROLES: AdminRole[] = ["admin", "ti", "gestor", "colaborador"];
+
+export type AdminUser = {
+  id: string;
+  email: string | null;
+  full_name: string | null;
+  job_title: string | null;
+  phone: string | null;
+  status: "ativo" | "convidado" | "desativado";
+  invited_at: string | null;
+  last_sign_in_at: string | null;
+  created_at: string;
+  roles: AdminRole[];
+};
+
+function parseRoles(input: unknown): AdminRole[] {
+  if (!Array.isArray(input)) return [];
+  return input.filter((r): r is AdminRole => ROLES.includes(r as AdminRole));
+}
+
+async function assertAdmin(context: { supabase: ReturnType<typeof Object>; userId: string }) {
+  const client = context.supabase as {
+    rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>;
+  };
+  const { data } = await client.rpc("has_role", {
+    _user_id: context.userId,
+    _role: "admin",
+  });
+  if (data !== true) throw new Error("Apenas administradores podem gerenciar acessos.");
+}
+
+async function admin() {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  return supabaseAdmin;
+}
+
+async function writeAudit(
+  actorId: string,
+  actorEmail: string | null,
+  action: string,
+  entityId: string | null,
+  details: Record<string, unknown>,
+) {
+  const db = await admin();
+  await db.from("audit_log").insert({
+    actor_id: actorId,
+    actor_email: actorEmail,
+    action,
+    entity: "acessos",
+    entity_id: entityId,
+    details: details as never,
+  });
+}
+
+export const listAccessUsers = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<AdminUser[]> => {
+    await assertAdmin(context as never);
+    const db = await admin();
+
+    const [{ data: profiles }, { data: roles }, authList] = await Promise.all([
+      db.from("profiles").select("*").order("full_name", { nullsFirst: false }),
+      db.from("user_roles").select("user_id, role"),
+      db.auth.admin.listUsers({ page: 1, perPage: 200 }),
+    ]);
+
+    const authById = new Map(
+      (authList.data?.users ?? []).map((u) => [
+        u.id,
+        { last_sign_in_at: u.last_sign_in_at ?? null, confirmed: !!u.email_confirmed_at },
+      ]),
+    );
+
+    return (profiles ?? []).map((p) => {
+      const info = authById.get(p.id);
+      const dbStatus = (p.status ?? "ativo") as AdminUser["status"];
+      const status: AdminUser["status"] =
+        dbStatus === "desativado"
+          ? "desativado"
+          : info && !info.confirmed && !info.last_sign_in_at
+            ? "convidado"
+            : "ativo";
+      return {
+        id: p.id,
+        email: p.email,
+        full_name: p.full_name,
+        job_title: p.job_title ?? null,
+        phone: p.phone ?? null,
+        status,
+        invited_at: p.invited_at ?? null,
+        last_sign_in_at: info?.last_sign_in_at ?? p.last_sign_in_at ?? null,
+        created_at: p.created_at,
+        roles: parseRoles((roles ?? []).filter((r) => r.user_id === p.id).map((r) => r.role)),
+      };
+    });
+  });
+
+export const inviteAccessUser = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { email: string; fullName: string; roles: string[]; origin: string }) => ({
+    email: input.email.trim().toLowerCase(),
+    fullName: input.fullName.trim(),
+    roles: parseRoles(input.roles),
+    origin: input.origin,
+  }))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context as never);
+    if (!data.email) throw new Error("Informe o e-mail.");
+    if (!data.fullName) throw new Error("Informe o nome completo.");
+    const db = await admin();
+
+    const { data: invited, error } = await db.auth.admin.inviteUserByEmail(data.email, {
+      redirectTo: `${data.origin}/definir-senha`,
+      data: { full_name: data.fullName },
+    });
+    if (error) {
+      throw new Error(
+        error.message.includes("already been registered")
+          ? "Este e-mail já possui acesso ao sistema."
+          : error.message,
+      );
+    }
+    const userId = invited.user!.id;
+
+    await db
+      .from("profiles")
+      .upsert(
+        {
+          id: userId,
+          email: data.email,
+          full_name: data.fullName,
+          status: "convidado",
+          invited_at: new Date().toISOString(),
+        },
+        { onConflict: "id" },
+      );
+
+    await db.from("user_roles").delete().eq("user_id", userId);
+    if (data.roles.length) {
+      await db.from("user_roles").insert(data.roles.map((role) => ({ user_id: userId, role })));
+    }
+
+    await writeAudit(context.userId, context.claims?.email ?? null, "convidar_acesso", userId, {
+      email: data.email,
+      roles: data.roles,
+    });
+    return { id: userId };
+  });
+
+export const resendAccessInvite = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { userId: string; email: string; origin: string }) => input)
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context as never);
+    const db = await admin();
+    const { error } = await db.auth.admin.inviteUserByEmail(data.email, {
+      redirectTo: `${data.origin}/definir-senha`,
+    });
+    if (error) throw new Error(error.message);
+    await db
+      .from("profiles")
+      .update({ status: "convidado", invited_at: new Date().toISOString() })
+      .eq("id", data.userId);
+    await writeAudit(
+      context.userId,
+      context.claims?.email ?? null,
+      "reenviar_convite",
+      data.userId,
+      { email: data.email },
+    );
+    return { ok: true };
+  });
+
+export const setAccessRoles = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { userId: string; roles: string[] }) => ({
+    userId: input.userId,
+    roles: parseRoles(input.roles),
+  }))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context as never);
+    if (data.userId === context.userId && !data.roles.includes("admin")) {
+      throw new Error("Você não pode remover o seu próprio papel de administrador.");
+    }
+    const db = await admin();
+    await db.from("user_roles").delete().eq("user_id", data.userId);
+    if (data.roles.length) {
+      await db.from("user_roles").insert(data.roles.map((role) => ({ user_id: data.userId, role })));
+    }
+    await writeAudit(
+      context.userId,
+      context.claims?.email ?? null,
+      "atualizar_papeis",
+      data.userId,
+      { roles: data.roles },
+    );
+    return { ok: true };
+  });
+
+export const setAccessActive = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { userId: string; active: boolean }) => input)
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context as never);
+    if (data.userId === context.userId && !data.active) {
+      throw new Error("Você não pode desativar a sua própria conta.");
+    }
+    const db = await admin();
+    const { error } = await db.auth.admin.updateUserById(data.userId, {
+      ban_duration: data.active ? "none" : "876000h",
+    });
+    if (error) throw new Error(error.message);
+    await db
+      .from("profiles")
+      .update({ status: data.active ? "ativo" : "desativado" })
+      .eq("id", data.userId);
+    await writeAudit(
+      context.userId,
+      context.claims?.email ?? null,
+      data.active ? "reativar_acesso" : "desativar_acesso",
+      data.userId,
+      {},
+    );
+    return { ok: true };
+  });
+
+export const revokeAccessUser = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { userId: string }) => input)
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context as never);
+    if (data.userId === context.userId) {
+      throw new Error("Você não pode excluir a sua própria conta.");
+    }
+    const db = await admin();
+    await db.from("user_roles").delete().eq("user_id", data.userId);
+    await db.from("profiles").delete().eq("id", data.userId);
+    const { error } = await db.auth.admin.deleteUser(data.userId);
+    if (error) throw new Error(error.message);
+    await writeAudit(context.userId, context.claims?.email ?? null, "excluir_acesso", data.userId, {});
+    return { ok: true };
+  });
