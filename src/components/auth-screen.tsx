@@ -6,10 +6,34 @@ import { OrigoLogo } from "@/components/brand-logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 import { useSession } from "@/hooks/useAuth";
+
+export function AuthBackdrop({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="dark relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-10 text-foreground">
+      {/* brilhos difusos da marca */}
+      <div aria-hidden className="pointer-events-none absolute inset-0">
+        <div className="absolute -top-32 left-1/2 h-96 w-[42rem] -translate-x-1/2 rounded-full bg-primary/25 blur-[140px]" />
+        <div className="absolute -bottom-40 -right-24 h-80 w-80 rounded-full bg-accent/30 blur-[120px]" />
+        <div className="absolute -bottom-32 -left-24 h-72 w-72 rounded-full bg-primary-glow/15 blur-[110px]" />
+        {/* malha de pontos */}
+        <div
+          className="absolute inset-0 opacity-[0.13]"
+          style={{
+            backgroundImage:
+              "radial-gradient(color-mix(in oklab, var(--foreground) 45%, transparent) 1px, transparent 1px)",
+            backgroundSize: "26px 26px",
+            maskImage:
+              "radial-gradient(ellipse 70% 60% at 50% 40%, black 30%, transparent 100%)",
+          }}
+        />
+      </div>
+      <div className="relative w-full max-w-md">{children}</div>
+    </div>
+  );
+}
 
 export function AuthScreen() {
   const navigate = useNavigate();
@@ -66,78 +90,100 @@ export function AuthScreen() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-secondary/40 px-4 py-10">
-      <div className="w-full max-w-md animate-in fade-in-50 slide-in-from-bottom-2 duration-500">
-        <div className="mb-6 flex items-center justify-center gap-3">
-          <OrigoLogo className="h-24" />
+    <AuthBackdrop>
+      <div className="animate-in fade-in-50 slide-in-from-bottom-3 duration-700">
+        <div className="mb-8 flex flex-col items-center gap-3">
+          <OrigoLogo className="h-24 drop-shadow-[0_0_28px_color-mix(in_oklab,var(--primary)_55%,transparent)]" />
+          <p className="text-xs font-medium uppercase tracking-[0.22em] text-muted-foreground">
+            Gestão de ativos de TI
+          </p>
         </div>
 
-        <Card className="shadow-[var(--shadow-elevated)]">
-          <CardHeader>
-            <CardTitle className="font-display">Acessar o sistema</CardTitle>
-            <CardDescription>
+        <div className="rounded-3xl border border-border/60 bg-card/60 p-8 shadow-2xl shadow-black/40 backdrop-blur-xl">
+          <div className="mb-6 space-y-1.5">
+            <h1 className="text-xl font-semibold tracking-tight">Acessar o sistema</h1>
+            <p className="text-sm text-muted-foreground">
               Use seu e-mail corporativo. Novas contas são criadas pelo administrador.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={handleMicrosoft}
-              disabled={busy}
-              type="button"
-            >
-              Entrar com Microsoft
-            </Button>
+            </p>
+          </div>
 
-            <div className="my-5 flex items-center gap-3 text-xs text-muted-foreground">
-              <span className="h-px flex-1 bg-border" />
-              ou com e-mail
-              <span className="h-px flex-1 bg-border" />
+          <Button
+            variant="outline"
+            className="w-full border-border/80 bg-transparent py-5 hover:bg-secondary/60"
+            onClick={handleMicrosoft}
+            disabled={busy}
+            type="button"
+          >
+            <svg className="mr-2 size-4" viewBox="0 0 23 23" aria-hidden>
+              <path fill="#f35325" d="M1 1h10v10H1z" />
+              <path fill="#81bc06" d="M12 1h10v10H12z" />
+              <path fill="#05a6f0" d="M1 12h10v10H1z" />
+              <path fill="#ffba08" d="M12 12h10v10H12z" />
+            </svg>
+            Entrar com Microsoft
+          </Button>
+
+          <div className="my-6 flex items-center gap-3 text-[11px] uppercase tracking-widest text-muted-foreground">
+            <span className="h-px flex-1 bg-border" />
+            ou com e-mail
+            <span className="h-px flex-1 bg-border" />
+          </div>
+
+          <form className="space-y-4" onSubmit={handleLogin}>
+            <div className="space-y-2">
+              <Label htmlFor="email" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                E-mail
+              </Label>
+              <Input
+                id="email"
+                type="email"
+                autoComplete="email"
+                placeholder="nome@origoenergia.com.br"
+                className="h-11 rounded-xl border-border/60 bg-secondary/40 focus-visible:ring-primary/60"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
             </div>
-
-            <form className="space-y-4" onSubmit={handleLogin}>
-              <div className="space-y-2">
-                <Label htmlFor="email">E-mail</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  autoComplete="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Senha
+                </Label>
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  className="text-xs font-medium text-primary underline-offset-4 hover:underline"
+                >
+                  Esqueci minha senha
+                </button>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Senha</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
-              </div>
-              <Button type="submit" className="w-full" disabled={busy}>
-                {busy && <Loader2 className="mr-2 size-4 animate-spin" />}
-                Entrar
-              </Button>
-              <button
-                type="button"
-                onClick={handleReset}
-                className="w-full text-center text-xs text-muted-foreground underline-offset-4 hover:underline"
-              >
-                Esqueci minha senha
-              </button>
-            </form>
-          </CardContent>
-        </Card>
+              <Input
+                id="password"
+                type="password"
+                autoComplete="current-password"
+                placeholder="••••••••"
+                className="h-11 rounded-xl border-border/60 bg-secondary/40 focus-visible:ring-primary/60"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            </div>
+            <Button
+              type="submit"
+              className="h-11 w-full rounded-xl text-[15px] font-semibold shadow-[0_10px_30px_-10px_color-mix(in_oklab,var(--primary)_70%,transparent)]"
+              disabled={busy}
+            >
+              {busy && <Loader2 className="mr-2 size-4 animate-spin" />}
+              Entrar
+            </Button>
+          </form>
+        </div>
 
-        <p className="mt-6 text-center text-xs text-muted-foreground">
-          Órigo Energia · Gestão de ativos de TI
+        <p className="mt-8 text-center text-xs text-muted-foreground">
+          © 2026 Órigo Energia · Órigo Ativos
         </p>
       </div>
-    </div>
+    </AuthBackdrop>
   );
 }
