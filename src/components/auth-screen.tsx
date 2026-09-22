@@ -122,22 +122,6 @@ export function AuthScreen() {
     goToApp();
   }
 
-  async function handleReset() {
-    if (!email) {
-      toast.error("Informe seu e-mail para receber o link de redefinição.");
-      return;
-    }
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/definir-senha`,
-    });
-    if (error) {
-      toast.error("Não foi possível enviar o link", { description: error.message });
-      return;
-    }
-    toast.success("Link enviado", {
-      description: "Confira sua caixa de entrada e siga o link para criar uma nova senha.",
-    });
-  }
 
   return (
     <AuthBackdrop>
