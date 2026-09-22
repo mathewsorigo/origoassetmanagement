@@ -251,8 +251,16 @@ export const revokeAccessUser = createServerFn({ method: "POST" })
       throw new Error("Você não pode excluir a sua própria conta.");
     }
     const db = await admin();
+    const { data: gone } = await db
+      .from("profiles")
+      .select("email")
+      .eq("id", data.userId)
+      .maybeSingle();
     await db.from("user_roles").delete().eq("user_id", data.userId);
     await db.from("profiles").delete().eq("id", data.userId);
+    if (gone?.email) {
+      await db.from("access_allowlist").delete().eq("email", gone.email.toLowerCase());
+    }
     const { error } = await db.auth.admin.deleteUser(data.userId);
     if (error) throw new Error(error.message);
     await writeAudit(context.userId, context.claims?.email ?? null, "excluir_acesso", data.userId, {});
