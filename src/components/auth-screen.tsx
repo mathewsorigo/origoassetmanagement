@@ -182,61 +182,13 @@ export function AuthScreen() {
           Entrar com Microsoft
         </Button>
 
-        <div className="my-6 flex items-center gap-3 text-[11px] uppercase tracking-widest text-muted-foreground">
-          <span className="h-px flex-1 bg-border" />
-          ou com e-mail
-          <span className="h-px flex-1 bg-border" />
-        </div>
+        {busy && (
+          <p className="mt-4 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+            <Loader2 className="size-3.5 animate-spin" />
+            Redirecionando para a Microsoft…
+          </p>
+        )}
 
-        <form className="space-y-4" onSubmit={handleLogin}>
-          <div className="space-y-2">
-            <Label htmlFor="email" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              E-mail
-            </Label>
-            <Input
-              id="email"
-              type="email"
-              autoComplete="email"
-              placeholder="nome@origoenergia.com.br"
-              className="h-11 rounded-xl border-border/60 bg-secondary/40 focus-visible:ring-primary/60"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="password" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Senha
-              </Label>
-              <button
-                type="button"
-                onClick={handleReset}
-                className="text-xs font-medium text-primary underline-offset-4 hover:underline"
-              >
-                Esqueci minha senha
-              </button>
-            </div>
-            <Input
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              placeholder="••••••••"
-              className="h-11 rounded-xl border-border/60 bg-secondary/40 focus-visible:ring-primary/60"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </div>
-          <Button
-            type="submit"
-            className="h-11 w-full rounded-xl text-[15px] font-semibold shadow-[0_10px_30px_-10px_color-mix(in_oklab,var(--primary)_70%,transparent)]"
-            disabled={busy}
-          >
-            {busy && <Loader2 className="mr-2 size-4 animate-spin" />}
-            Entrar
-          </Button>
-        </form>
 
         <p className="mt-8 text-center text-xs text-muted-foreground md:hidden">
           © 2026 Órigo Energia · Órigo Ativos
