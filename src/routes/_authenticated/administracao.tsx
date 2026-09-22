@@ -1,16 +1,51 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { toast } from "sonner";
+import {
+  Loader2,
+  MailPlus,
+  MoreHorizontal,
+  RefreshCw,
+  ShieldCheck,
+  Trash2,
+  UserCheck,
+  UserX,
+} from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Table,
   TableBody,
@@ -19,221 +54,380 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { supabase } from "@/integrations/supabase/client";
-import { roleLabel } from "@/lib/format";
-import { logAudit } from "@/lib/audit";
+import { roleLabel, formatDate } from "@/lib/format";
+import {
+  inviteAccessUser,
+  listAccessUsers,
+  resendAccessInvite,
+  revokeAccessUser,
+  setAccessActive,
+  setAccessRoles,
+  type AdminRole,
+  type AdminUser,
+} from "@/lib/admin-users.functions";
 
 export const Route = createFileRoute("/_authenticated/administracao")({
   head: () => ({
     meta: [
-      { title: "Administração · Órigo Ativos" },
+      { title: "Acessos · Órigo Ativos" },
       {
         name: "description",
-        content: "Gestão de acessos, papéis e modelo do termo de responsabilidade.",
+        content: "Convites, papéis e situação das contas que usam o sistema de ativos da Órigo.",
       },
-      { property: "og:title", content: "Administração · Órigo Ativos" },
-      { property: "og:description", content: "Papéis de acesso e modelo de termo." },
+      { property: "og:title", content: "Acessos · Órigo Ativos" },
+      { property: "og:description", content: "Convites e papéis de acesso ao sistema." },
     ],
   }),
   component: Administracao,
 });
 
-const allRoles = ["admin", "ti", "gestor", "colaborador"] as const;
+const allRoles: AdminRole[] = ["admin", "ti", "gestor", "colaborador"];
+
+const statusTone: Record<AdminUser["status"], string> = {
+  ativo: "border-success/30 bg-success/15 text-success",
+  convidado: "border-warning/40 bg-warning/25 text-warning-foreground",
+  desativado: "border-destructive/30 bg-destructive/12 text-destructive",
+};
+
+const statusLabel: Record<AdminUser["status"], string> = {
+  ativo: "Ativo",
+  convidado: "Convite pendente",
+  desativado: "Desativado",
+};
 
 function Administracao() {
   const queryClient = useQueryClient();
-  const [templateDraft, setTemplateDraft] = useState<{ id: string; body: string } | null>(null);
+  const listUsers = useServerFn(listAccessUsers);
+  const invite = useServerFn(inviteAccessUser);
+  const resend = useServerFn(resendAccessInvite);
+  const saveRoles = useServerFn(setAccessRoles);
+  const setActive = useServerFn(setAccessActive);
+  const revoke = useServerFn(revokeAccessUser);
 
-  const { data: users } = useQuery({
-    queryKey: ["admin-users"],
-    queryFn: async () => {
-      const [profiles, roles] = await Promise.all([
-        supabase.from("profiles").select("*").order("full_name"),
-        supabase.from("user_roles").select("*"),
-      ]);
-      if (profiles.error) throw profiles.error;
-      if (roles.error) throw roles.error;
-      return (profiles.data ?? []).map((p) => ({
-        ...p,
-        roles: (roles.data ?? []).filter((r) => r.user_id === p.id).map((r) => r.role),
-      }));
-    },
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [form, setForm] = useState<{ fullName: string; email: string; roles: AdminRole[] }>({
+    fullName: "",
+    email: "",
+    roles: ["colaborador"],
+  });
+  const [rolesTarget, setRolesTarget] = useState<AdminUser | null>(null);
+  const [rolesDraft, setRolesDraft] = useState<AdminRole[]>([]);
+  const [deleteTarget, setDeleteTarget] = useState<AdminUser | null>(null);
+
+  const { data: users, isLoading } = useQuery({
+    queryKey: ["access-users"],
+    queryFn: () => listUsers(),
+    staleTime: 60 * 1000,
   });
 
-  const { data: templates } = useQuery({
-    queryKey: ["templates"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("agreement_templates")
-        .select("*")
-        .order("is_default", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-  });
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ["access-users"] });
+  const fail = (e: Error) => toast.error("Não foi possível concluir", { description: e.message });
 
-  const toggleRole = useMutation({
-    mutationFn: async (input: { userId: string; role: (typeof allRoles)[number]; has: boolean }) => {
-      if (input.has) {
-        const { error } = await supabase
-          .from("user_roles")
-          .delete()
-          .eq("user_id", input.userId)
-          .eq("role", input.role);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from("user_roles")
-          .insert({ user_id: input.userId, role: input.role });
-        if (error) throw error;
-      }
-      await logAudit({
-        action: input.has ? "remover_papel" : "conceder_papel",
-        entity: "user_roles",
-        entityId: input.userId,
-        details: { role: input.role },
-      });
-    },
+  const inviteMutation = useMutation({
+    mutationFn: () =>
+      invite({
+        data: {
+          email: form.email,
+          fullName: form.fullName,
+          roles: form.roles,
+          origin: window.location.origin,
+        },
+      }),
     onSuccess: () => {
-      toast.success("Permissões atualizadas.");
-      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+      toast.success("Convite enviado", {
+        description: "A pessoa recebeu um e-mail para definir a própria senha.",
+      });
+      setInviteOpen(false);
+      setForm({ fullName: "", email: "", roles: ["colaborador"] });
+      refresh();
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: fail,
   });
 
-  const saveTemplate = useMutation({
-    mutationFn: async () => {
-      if (!templateDraft) return;
-      const { error } = await supabase
-        .from("agreement_templates")
-        .update({ body: templateDraft.body, updated_at: new Date().toISOString() })
-        .eq("id", templateDraft.id);
-      if (error) throw error;
-      await logAudit({
-        action: "atualizar_modelo_termo",
-        entity: "agreement_templates",
-        entityId: templateDraft.id,
-      });
-    },
+  const resendMutation = useMutation({
+    mutationFn: (u: AdminUser) =>
+      resend({ data: { userId: u.id, email: u.email ?? "", origin: window.location.origin } }),
     onSuccess: () => {
-      toast.success("Modelo de termo salvo.");
-      setTemplateDraft(null);
-      queryClient.invalidateQueries({ queryKey: ["templates"] });
+      toast.success("Convite reenviado.");
+      refresh();
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: fail,
+  });
+
+  const rolesMutation = useMutation({
+    mutationFn: () => saveRoles({ data: { userId: rolesTarget!.id, roles: rolesDraft } }),
+    onSuccess: () => {
+      toast.success("Papéis atualizados.");
+      setRolesTarget(null);
+      refresh();
+    },
+    onError: fail,
+  });
+
+  const activeMutation = useMutation({
+    mutationFn: (input: { userId: string; active: boolean }) => setActive({ data: input }),
+    onSuccess: (_d, input) => {
+      toast.success(input.active ? "Acesso reativado." : "Acesso desativado.");
+      refresh();
+    },
+    onError: fail,
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => revoke({ data: { userId: deleteTarget!.id } }),
+    onSuccess: () => {
+      toast.success("Acesso removido.");
+      setDeleteTarget(null);
+      refresh();
+    },
+    onError: fail,
   });
 
   return (
     <div>
       <PageHeader
-        title="Administração"
-        description="Controle de acessos e o modelo do termo preenchido automaticamente."
+        title="Acessos"
+        description="Convide pessoas, defina o que cada uma pode fazer e controle contas ativas."
+        actions={
+          <Button onClick={() => setInviteOpen(true)}>
+            <MailPlus className="mr-2 size-4" />
+            Convidar pessoa
+          </Button>
+        }
       />
 
-      <Tabs defaultValue="acessos">
-        <TabsList>
-          <TabsTrigger value="acessos">Acessos e papéis</TabsTrigger>
-          <TabsTrigger value="termo">Modelo do termo</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="acessos" className="mt-4">
-          <Card className="overflow-x-auto p-4">
-            <CardDescription className="mb-3">
-              O primeiro usuário cadastrado recebe o papel de administrador. Novos acessos são
-              criados na tela de login e liberados aqui.
-            </CardDescription>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Usuário</TableHead>
-                  {allRoles.map((r) => (
-                    <TableHead key={r}>{roleLabel[r]}</TableHead>
-                  ))}
+      <Card className="overflow-x-auto p-4">
+        <CardDescription className="mb-3 flex items-center gap-2">
+          <ShieldCheck className="size-4 text-primary" />
+          Apenas administradores criam acessos. Não existe cadastro por conta própria.
+        </CardDescription>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Pessoa</TableHead>
+              <TableHead>Situação</TableHead>
+              <TableHead>Papéis</TableHead>
+              <TableHead>Convite</TableHead>
+              <TableHead>Último acesso</TableHead>
+              <TableHead className="w-10" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading &&
+              Array.from({ length: 4 }).map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell colSpan={6}>
+                    <Skeleton className="h-6 w-full" />
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {(users ?? []).map((u) => (
-                  <TableRow key={u.id}>
-                    <TableCell className="text-sm">
-                      <p className="font-medium">{u.full_name ?? "—"}</p>
-                      <p className="text-xs text-muted-foreground">{u.email}</p>
-                    </TableCell>
-                    {allRoles.map((role) => {
-                      const has = u.roles.includes(role);
-                      return (
-                        <TableCell key={role}>
-                          <Checkbox
-                            checked={has}
-                            onCheckedChange={() =>
-                              toggleRole.mutate({ userId: u.id, role, has })
-                            }
-                          />
-                        </TableCell>
-                      );
-                    })}
-                  </TableRow>
-                ))}
-                {(users ?? []).length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground">
-                      Nenhum usuário cadastrado.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="termo" className="mt-4 space-y-4">
-          {(templates ?? []).map((t) => (
-            <Card key={t.id}>
-              <CardHeader>
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <CardTitle className="font-display text-base">{t.name}</CardTitle>
-                    <CardDescription>
-                      Use os marcadores entre chaves duplas; eles são substituídos pelos dados reais.
-                    </CardDescription>
+              ))}
+            {(users ?? []).map((u) => (
+              <TableRow key={u.id}>
+                <TableCell className="text-sm">
+                  <p className="font-medium">{u.full_name ?? "—"}</p>
+                  <p className="text-xs text-muted-foreground">{u.email}</p>
+                </TableCell>
+                <TableCell>
+                  <Badge variant="outline" className={statusTone[u.status]}>
+                    {statusLabel[u.status]}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <div className="flex flex-wrap gap-1">
+                    {u.roles.map((r) => (
+                      <Badge key={r} variant="outline">
+                        {roleLabel[r]}
+                      </Badge>
+                    ))}
+                    {u.roles.length === 0 && (
+                      <span className="text-xs text-muted-foreground">Sem papel</span>
+                    )}
                   </div>
-                  {t.is_default && (
-                    <Badge variant="outline" className="border-success/30 bg-success/15 text-success">
-                      Padrão
-                    </Badge>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="space-y-2">
-                  <Label>Nome</Label>
-                  <Input value={t.name} disabled />
-                </div>
-                <div className="space-y-2">
-                  <Label>Conteúdo</Label>
-                  <Textarea
-                    className="min-h-80 font-mono text-xs"
-                    value={templateDraft?.id === t.id ? templateDraft.body : t.body}
-                    onChange={(e) => setTemplateDraft({ id: t.id, body: e.target.value })}
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Marcadores disponíveis: {"{{colaborador_nome}}"}, {"{{colaborador_cpf}}"},{" "}
-                  {"{{colaborador_email}}"}, {"{{colaborador_cargo}}"}, {"{{colaborador_area}}"},{" "}
-                  {"{{fornecedor}}"}, {"{{ativo_tipo}}"}, {"{{ativo_marca}}"}, {"{{ativo_modelo}}"},{" "}
-                  {"{{ativo_serie}}"}, {"{{ativo_patrimonio}}"}, {"{{ativo_imei}}"},{" "}
-                  {"{{condicao_entrega}}"}, {"{{data_entrega}}"}, {"{{data_hoje}}"}.
-                </p>
-                <Button
-                  onClick={() => saveTemplate.mutate()}
-                  disabled={templateDraft?.id !== t.id || saveTemplate.isPending}
-                >
-                  Salvar modelo
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
-        </TabsContent>
-      </Tabs>
+                </TableCell>
+                <TableCell className="text-xs text-muted-foreground">
+                  {u.invited_at ? formatDate(u.invited_at) : "—"}
+                </TableCell>
+                <TableCell className="text-xs text-muted-foreground">
+                  {u.last_sign_in_at ? formatDate(u.last_sign_in_at) : "Nunca acessou"}
+                </TableCell>
+                <TableCell>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="size-8" aria-label="Ações">
+                        <MoreHorizontal className="size-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        onSelect={() => {
+                          setRolesTarget(u);
+                          setRolesDraft(u.roles);
+                        }}
+                      >
+                        <ShieldCheck className="mr-2 size-4" />
+                        Alterar papéis
+                      </DropdownMenuItem>
+                      {u.status === "convidado" && (
+                        <DropdownMenuItem onSelect={() => resendMutation.mutate(u)}>
+                          <RefreshCw className="mr-2 size-4" />
+                          Reenviar convite
+                        </DropdownMenuItem>
+                      )}
+                      <DropdownMenuSeparator />
+                      {u.status === "desativado" ? (
+                        <DropdownMenuItem
+                          onSelect={() => activeMutation.mutate({ userId: u.id, active: true })}
+                        >
+                          <UserCheck className="mr-2 size-4" />
+                          Reativar acesso
+                        </DropdownMenuItem>
+                      ) : (
+                        <DropdownMenuItem
+                          onSelect={() => activeMutation.mutate({ userId: u.id, active: false })}
+                        >
+                          <UserX className="mr-2 size-4" />
+                          Desativar acesso
+                        </DropdownMenuItem>
+                      )}
+                      <DropdownMenuItem
+                        className="text-destructive"
+                        onSelect={() => setDeleteTarget(u)}
+                      >
+                        <Trash2 className="mr-2 size-4" />
+                        {u.status === "convidado" ? "Cancelar convite" : "Excluir acesso"}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </TableCell>
+              </TableRow>
+            ))}
+            {!isLoading && (users ?? []).length === 0 && (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center text-muted-foreground">
+                  Nenhum acesso cadastrado.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </Card>
+
+      <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="font-display">Convidar pessoa</DialogTitle>
+            <DialogDescription>
+              Ela recebe um e-mail com um link para definir a própria senha.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label htmlFor="inv-nome">Nome completo</Label>
+              <Input
+                id="inv-nome"
+                value={form.fullName}
+                onChange={(e) => setForm({ ...form, fullName: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="inv-email">E-mail corporativo</Label>
+              <Input
+                id="inv-email"
+                type="email"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Papéis</Label>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {allRoles.map((role) => (
+                  <label key={role} className="flex items-center gap-2 rounded-lg border p-2 text-sm">
+                    <Checkbox
+                      checked={form.roles.includes(role)}
+                      onCheckedChange={(v) =>
+                        setForm({
+                          ...form,
+                          roles: v
+                            ? [...form.roles, role]
+                            : form.roles.filter((r) => r !== role),
+                        })
+                      }
+                    />
+                    {roleLabel[role]}
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setInviteOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={() => inviteMutation.mutate()} disabled={inviteMutation.isPending}>
+              {inviteMutation.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
+              Enviar convite
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!rolesTarget} onOpenChange={(v) => !v && setRolesTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="font-display">Papéis de {rolesTarget?.full_name}</DialogTitle>
+            <DialogDescription>
+              Administrador gerencia acessos; TI cadastra e vincula; Gestor acompanha; Colaborador
+              apenas consulta.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {allRoles.map((role) => (
+              <label key={role} className="flex items-center gap-2 rounded-lg border p-2 text-sm">
+                <Checkbox
+                  checked={rolesDraft.includes(role)}
+                  onCheckedChange={(v) =>
+                    setRolesDraft(
+                      v ? [...rolesDraft, role] : rolesDraft.filter((r) => r !== role),
+                    )
+                  }
+                />
+                {roleLabel[role]}
+              </label>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRolesTarget(null)}>
+              Cancelar
+            </Button>
+            <Button onClick={() => rolesMutation.mutate()} disabled={rolesMutation.isPending}>
+              {rolesMutation.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
+              Salvar papéis
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(v) => !v && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remover o acesso de {deleteTarget?.full_name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              A conta e os papéis são apagados. O histórico de equipamentos e termos continua no
+              sistema.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteMutation.mutate()}
+            >
+              Remover acesso
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
