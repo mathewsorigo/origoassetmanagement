@@ -9,6 +9,8 @@ import {
   FileSpreadsheet,
   Trash2,
 } from "lucide-react";
+import { SortableHead, TablePagination } from "@/components/data-table-ui";
+import { useTableState } from "@/hooks/useTableState";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
@@ -197,7 +199,19 @@ function Pessoas() {
     ).filter((a) => a.status === "ativo");
   }
 
-  const allChecked = filtered.length > 0 && filtered.every((e) => checked.has(e.id));
+  const table = useTableState(filtered, {
+    key: "pessoas",
+    accessors: {
+      colaborador: (e) => e.full_name,
+      area: (e) => e.department,
+      unidade: (e) => e.unit,
+      equipamentos: (e) => activeAssets(e).length,
+      situacao: (e) => e.status,
+    },
+    defaultSort: { key: "colaborador", dir: "asc" },
+  });
+  const pageRows = table.pageRows;
+  const allChecked = pageRows.length > 0 && pageRows.every((e) => checked.has(e.id));
   const selectedEmployees = filtered.filter((e) => checked.has(e.id));
 
   function toggleRow(id: string) {
