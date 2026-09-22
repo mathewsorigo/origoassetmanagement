@@ -90,6 +90,15 @@ export function AuthScreen() {
   const navigate = useNavigate();
   const { session, loading } = useSession();
   const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fromUrl = readAuthErrorFromUrl();
+    const fromApp = takeAuthNotice();
+    const message = fromUrl ?? fromApp;
+    if (message) setNotice(message);
+  }, []);
+
 
 
   const goToApp = useCallback(() => {
