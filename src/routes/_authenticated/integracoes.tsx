@@ -103,8 +103,8 @@ function Integracoes() {
   const save = useMutation({
     mutationFn: async (input: { id: string; provider: string; enabled?: boolean; base_url?: string }) => {
       const patch: Record<string, unknown> = {};
-      if (input.enabled !== undefined) patch.enabled = input.enabled;
-      if (input.base_url !== undefined) patch.base_url = input.base_url || null;
+      if (input.enabled !== undefined) patch["enabled"] = input.enabled;
+      if (input.base_url !== undefined) patch["base_url"] = input.base_url || null;
       const { error } = await supabase
         .from("integration_settings")
         .update(patch as never)

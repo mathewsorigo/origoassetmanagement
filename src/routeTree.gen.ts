@@ -15,6 +15,8 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as AuthenticatedAtivosRouteImport } from './routes/_authenticated/ativos'
 import { Route as AuthenticatedAuditoriaRouteImport } from './routes/_authenticated/auditoria'
+import { Route as AuthenticatedImportacaoRouteImport } from './routes/_authenticated/importacao'
+import { Route as AuthenticatedIntegracoesRouteImport } from './routes/_authenticated/integracoes'
 import { Route as AuthenticatedPainelRouteImport } from './routes/_authenticated/painel'
 import { Route as AuthenticatedPessoasRouteImport } from './routes/_authenticated/pessoas'
 import { Route as AuthenticatedTermosRouteImport } from './routes/_authenticated/termos'
@@ -51,6 +53,17 @@ const AuthenticatedAuditoriaRoute = AuthenticatedAuditoriaRouteImport.update({
   path: '/auditoria',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedImportacaoRoute = AuthenticatedImportacaoRouteImport.update({
+  id: '/importacao',
+  path: '/importacao',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedIntegracoesRoute =
+  AuthenticatedIntegracoesRouteImport.update({
+    id: '/integracoes',
+    path: '/integracoes',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedPainelRoute = AuthenticatedPainelRouteImport.update({
   id: '/painel',
   path: '/painel',
@@ -88,6 +101,8 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/ativos': typeof AuthenticatedAtivosRouteWithChildren
   '/auditoria': typeof AuthenticatedAuditoriaRoute
+  '/importacao': typeof AuthenticatedImportacaoRoute
+  '/integracoes': typeof AuthenticatedIntegracoesRoute
   '/painel': typeof AuthenticatedPainelRoute
   '/pessoas': typeof AuthenticatedPessoasRouteWithChildren
   '/termos': typeof AuthenticatedTermosRoute
@@ -101,6 +116,8 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/ativos': typeof AuthenticatedAtivosRouteWithChildren
   '/auditoria': typeof AuthenticatedAuditoriaRoute
+  '/importacao': typeof AuthenticatedImportacaoRoute
+  '/integracoes': typeof AuthenticatedIntegracoesRoute
   '/painel': typeof AuthenticatedPainelRoute
   '/pessoas': typeof AuthenticatedPessoasRouteWithChildren
   '/termos': typeof AuthenticatedTermosRoute
@@ -116,6 +133,8 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/_authenticated/ativos': typeof AuthenticatedAtivosRouteWithChildren
   '/_authenticated/auditoria': typeof AuthenticatedAuditoriaRoute
+  '/_authenticated/importacao': typeof AuthenticatedImportacaoRoute
+  '/_authenticated/integracoes': typeof AuthenticatedIntegracoesRoute
   '/_authenticated/painel': typeof AuthenticatedPainelRoute
   '/_authenticated/pessoas': typeof AuthenticatedPessoasRouteWithChildren
   '/_authenticated/termos': typeof AuthenticatedTermosRoute
@@ -131,6 +150,8 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/ativos'
     | '/auditoria'
+    | '/importacao'
+    | '/integracoes'
     | '/painel'
     | '/pessoas'
     | '/termos'
@@ -144,6 +165,8 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/ativos'
     | '/auditoria'
+    | '/importacao'
+    | '/integracoes'
     | '/painel'
     | '/pessoas'
     | '/termos'
@@ -158,6 +181,8 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/_authenticated/ativos'
     | '/_authenticated/auditoria'
+    | '/_authenticated/importacao'
+    | '/_authenticated/integracoes'
     | '/_authenticated/painel'
     | '/_authenticated/pessoas'
     | '/_authenticated/termos'
@@ -215,6 +240,20 @@ declare module '@tanstack/react-router' {
       path: '/auditoria'
       fullPath: '/auditoria'
       preLoaderRoute: typeof AuthenticatedAuditoriaRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/importacao': {
+      id: '/_authenticated/importacao'
+      path: '/importacao'
+      fullPath: '/importacao'
+      preLoaderRoute: typeof AuthenticatedImportacaoRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/integracoes': {
+      id: '/_authenticated/integracoes'
+      path: '/integracoes'
+      fullPath: '/integracoes'
+      preLoaderRoute: typeof AuthenticatedIntegracoesRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/painel': {
@@ -287,6 +326,8 @@ const AuthenticatedPessoasRouteWithChildren =
 interface AuthenticatedRouteChildren {
   AuthenticatedAtivosRoute: typeof AuthenticatedAtivosRouteWithChildren
   AuthenticatedAuditoriaRoute: typeof AuthenticatedAuditoriaRoute
+  AuthenticatedImportacaoRoute: typeof AuthenticatedImportacaoRoute
+  AuthenticatedIntegracoesRoute: typeof AuthenticatedIntegracoesRoute
   AuthenticatedPainelRoute: typeof AuthenticatedPainelRoute
   AuthenticatedPessoasRoute: typeof AuthenticatedPessoasRouteWithChildren
   AuthenticatedTermosRoute: typeof AuthenticatedTermosRoute
@@ -296,6 +337,8 @@ interface AuthenticatedRouteChildren {
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAtivosRoute: AuthenticatedAtivosRouteWithChildren,
   AuthenticatedAuditoriaRoute: AuthenticatedAuditoriaRoute,
+  AuthenticatedImportacaoRoute: AuthenticatedImportacaoRoute,
+  AuthenticatedIntegracoesRoute: AuthenticatedIntegracoesRoute,
   AuthenticatedPainelRoute: AuthenticatedPainelRoute,
   AuthenticatedPessoasRoute: AuthenticatedPessoasRouteWithChildren,
   AuthenticatedTermosRoute: AuthenticatedTermosRoute,
