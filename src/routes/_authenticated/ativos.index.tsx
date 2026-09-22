@@ -142,15 +142,23 @@ function Ativos() {
   const { data: assets, isLoading } = useQuery({
     queryKey: ["assets"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("assets")
-        .select(
-          "*, assignments(id,status,employee:employees(id,full_name))",
-        )
-        .order("created_at", { ascending: false })
-        .range(0, 9999);
-      if (error) throw error;
-      return data;
+      const pageSize = 1000;
+      const all: NonNullable<Awaited<ReturnType<typeof fetchPage>>> = [];
+      async function fetchPage(from: number) {
+        const { data, error } = await supabase
+          .from("assets")
+          .select("*, assignments(id,status,employee:employees(id,full_name))")
+          .order("created_at", { ascending: false })
+          .range(from, from + pageSize - 1);
+        if (error) throw error;
+        return data ?? [];
+      }
+      for (let from = 0; ; from += pageSize) {
+        const page = await fetchPage(from);
+        all.push(...page);
+        if (page.length < pageSize) break;
+      }
+      return all;
     },
   });
 
