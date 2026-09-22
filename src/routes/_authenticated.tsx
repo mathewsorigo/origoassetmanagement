@@ -44,6 +44,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useProfile, useRoles, useSession, isManager, isOperator, isAdmin } from "@/hooks/useAuth";
 import { roleLabel } from "@/lib/format";
+import { rememberPendingQr } from "@/lib/pending-qr";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
