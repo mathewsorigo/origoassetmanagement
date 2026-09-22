@@ -22,6 +22,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { DocumentsPanel } from "@/components/documents-panel";
 import { DetailField, DetailSection } from "@/components/detail-field";
 import { TagBadge } from "@/components/tag-badge";
+import { AssetQrButton } from "@/components/asset-qr-dialog";
 import { TagPicker } from "@/components/tag-picker";
 import { useAssetTags } from "@/lib/tags";
 import {
