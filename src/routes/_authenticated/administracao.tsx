@@ -347,6 +347,18 @@ function Administracao() {
             )}
           </TableBody>
         </Table>
+        <TablePagination
+          className="-mx-4 mt-3 px-4"
+          noun="acessos"
+          total={table.total}
+          rangeStart={table.rangeStart}
+          rangeEnd={table.rangeEnd}
+          page={table.page}
+          pageCount={table.pageCount}
+          pageSize={table.pageSize}
+          onPageChange={table.setPage}
+          onPageSizeChange={table.setPageSize}
+        />
       </Card>
 
       <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
