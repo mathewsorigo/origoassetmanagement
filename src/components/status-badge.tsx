@@ -43,6 +43,27 @@ const tones: Record<string, { chip: string; dot: string }> = {
     chip: "bg-destructive/8 text-destructive border-destructive/20",
     dot: "bg-destructive",
   },
+  vigente: { chip: "bg-success/8 text-success border-success/20", dot: "bg-success" },
+  vencendo: {
+    chip: "bg-warning/12 text-warning-foreground border-warning/30",
+    dot: "bg-warning",
+  },
+  vencida: {
+    chip: "bg-destructive/8 text-destructive border-destructive/20",
+    dot: "bg-destructive",
+  },
+  sem_prazo: { chip: "bg-muted text-muted-foreground border-border", dot: "bg-muted-foreground" },
+  aberta: { chip: "bg-info/8 text-info border-info/20", dot: "bg-info" },
+  encerrada: { chip: "bg-muted text-muted-foreground border-border", dot: "bg-muted-foreground" },
+};
+
+const extraLabels: Record<string, string> = {
+  vigente: "Vigente",
+  vencendo: "Vencendo",
+  vencida: "Vencida",
+  sem_prazo: "Sem prazo",
+  aberta: "Aberta",
+  encerrada: "Encerrada",
 };
 
 export function StatusBadge({ value, className }: { value: string; className?: string }) {
@@ -50,6 +71,7 @@ export function StatusBadge({ value, className }: { value: string; className?: s
     assetStatusLabel[value] ??
     agreementStatusLabel[value] ??
     employeeStatusLabel[value] ??
+    extraLabels[value] ??
     (value === "encerrado" ? "Encerrado" : value);
   const tone = tones[value] ?? {
     chip: "bg-muted text-muted-foreground border-border",
