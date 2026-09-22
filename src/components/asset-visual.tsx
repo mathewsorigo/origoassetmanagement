@@ -2,6 +2,7 @@ import { Laptop, Smartphone, Monitor, Cable, Package } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { modelImage } from "@/lib/model-images";
 
 const icons: Record<string, LucideIcon> = {
   notebook: Laptop,
@@ -13,23 +14,35 @@ const icons: Record<string, LucideIcon> = {
 
 export function AssetIcon({
   type,
+  model,
   className,
   size = "sm",
 }: {
   type: string;
-  className?: string;
+  model?: string | null | undefined;
+  className?: string | undefined;
   size?: "sm" | "lg";
 }) {
   const Icon = icons[type] ?? Package;
+  const photo = modelImage(model);
   return (
     <span
       className={cn(
-        "inline-flex items-center justify-center rounded-xl border border-primary/25 bg-primary/10 text-primary",
+        "inline-flex shrink-0 items-center justify-center overflow-hidden rounded-xl border border-primary/25 bg-primary/10 text-primary",
         size === "lg" ? "size-16" : "size-9",
         className,
       )}
     >
-      <Icon className={size === "lg" ? "size-8" : "size-4"} />
+      {photo ? (
+        <img
+          src={photo}
+          alt={model ?? type}
+          loading="lazy"
+          className="size-full bg-white object-contain p-0.5"
+        />
+      ) : (
+        <Icon className={size === "lg" ? "size-8" : "size-4"} />
+      )}
     </span>
   );
 }

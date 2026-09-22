@@ -230,7 +230,7 @@ function AtivoDetalhe() {
       </Button>
 
       <div className="mb-5 flex flex-wrap items-start gap-4 rounded-xl border bg-card p-5">
-        <AssetIcon type={asset?.asset_type ?? "outro"} size="lg" />
+        <AssetIcon type={asset?.asset_type ?? "outro"} model={asset?.model} size="lg" />
         <div className="min-w-0 flex-1">
           <h1 className="font-display text-2xl font-semibold tracking-tight">{title}</h1>
           <div className="mt-2 flex flex-wrap items-center gap-2">
