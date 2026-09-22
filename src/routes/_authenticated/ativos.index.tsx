@@ -140,7 +140,7 @@ function Ativos() {
     serial: string;
   } | null>(null);
 
-  const [viewMode, setViewMode] = useViewMode("ativos");
+  const { mode: viewMode, setMode: setViewMode } = useViewMode("ativos");
   const columns = useColumns("ativos", [
     { id: "equipamento", label: "Equipamento", locked: true },
     { id: "usuario", label: "Usuário atual" },
@@ -149,6 +149,7 @@ function Ativos() {
     { id: "situacao", label: "Situação", locked: true },
   ]);
   const savedViews = useSavedViews("ativos");
+  const visibleColumns = columns.columns.filter((c) => columns.isVisible(c.id));
   const currentFilters = {
     term,
     tipo: typeFilter,
@@ -474,7 +475,7 @@ function Ativos() {
               onApply={applyView}
             />
             <ColumnPicker
-              columns={columns.all}
+              columns={columns.columns}
               isVisible={columns.isVisible}
               onToggle={columns.toggle}
               onReset={columns.reset}
@@ -539,7 +540,7 @@ function Ativos() {
                     aria-label="Selecionar todos"
                   />
                 </TableHead>
-                {columns.columns.map(({ id: columnKey, label }) => (
+                {visibleColumns.map(({ id: columnKey, label }) => (
                   <SortableHead
                     key={columnKey}
                     columnKey={columnKey}
@@ -556,7 +557,7 @@ function Ativos() {
               {isLoading &&
                 Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={`s-${i}`}>
-                    {Array.from({ length: columns.columns.length + 2 }).map((__, j) => (
+                    {Array.from({ length: visibleColumns.length + 2 }).map((__, j) => (
                       <TableCell key={j}>
                         <Skeleton className="h-4 w-full max-w-40" />
                       </TableCell>
@@ -565,7 +566,7 @@ function Ativos() {
                 ))}
               {!isLoading && filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={columns.columns.length + 2} className="py-8">
+                  <TableCell colSpan={visibleColumns.length + 2} className="py-8">
                     <EmptyState
                       icon={PackageSearch}
                       title="Nenhum equipamento encontrado"
