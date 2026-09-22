@@ -99,6 +99,12 @@ function Ativos() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ ...emptyForm });
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [panelMode, setPanelMode] = useState<"view" | "edit">("view");
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: string;
+    title: string;
+    serial: string;
+  } | null>(null);
 
   const { data: assets, isLoading } = useQuery({
     queryKey: ["assets"],
@@ -289,6 +295,7 @@ function Ativos() {
                 <TableHead>Fornecedor</TableHead>
                 <TableHead>Locação</TableHead>
                 <TableHead>Situação</TableHead>
+                <TableHead className="w-10" />
               </TableRow>
             </TableHeader>
             <TableBody>
