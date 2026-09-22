@@ -90,6 +90,20 @@ function Vinculos() {
     },
   });
 
+  const table = useTableState(assignments, {
+    key: "vinculos",
+    accessors: {
+      colaborador: (a) => (a.employee as { full_name: string } | null)?.full_name ?? null,
+      equipamento: (a) => {
+        const asset = a.asset as { brand: string | null; model: string | null; serial_number: string } | null;
+        return asset ? `${asset.brand ?? ""} ${asset.model ?? ""}`.trim() || asset.serial_number : null;
+      },
+      entrega: (a) => a.assigned_at,
+      devolucao: (a) => a.returned_at,
+      situacao: (a) => a.status,
+    },
+  });
+
   const { data: employees } = useQuery({
     queryKey: ["employees-simple"],
     queryFn: async () => {
