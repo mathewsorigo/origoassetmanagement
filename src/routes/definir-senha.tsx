@@ -3,10 +3,10 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { OrigoLogo } from "@/components/brand-logo";
+import { AuthBackdrop } from "@/components/auth-screen";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/definir-senha")({
@@ -92,96 +92,107 @@ function DefinirSenha() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-secondary/40 px-4 py-10">
-      <div className="w-full max-w-md animate-in fade-in-50 slide-in-from-bottom-2 duration-500">
-        <div className="mb-6 flex justify-center">
-          <OrigoLogo className="h-24" />
+    <AuthBackdrop>
+      <div className="animate-in fade-in-50 slide-in-from-bottom-3 duration-700">
+        <div className="mb-8 flex justify-center">
+          <OrigoLogo className="h-24 drop-shadow-[0_0_28px_color-mix(in_oklab,var(--primary)_55%,transparent)]" />
         </div>
-        <Card className="shadow-[var(--shadow-elevated)]">
-          <CardHeader>
-            <CardTitle className="font-display">Definir senha</CardTitle>
-            <CardDescription>
+        <div className="rounded-3xl border border-border/60 bg-card/60 p-8 shadow-2xl shadow-black/40 backdrop-blur-xl">
+          <div className="mb-6 space-y-1.5">
+            <h1 className="text-xl font-semibold tracking-tight">Definir senha</h1>
+            <p className="text-sm text-muted-foreground">
               {ready === "expired"
                 ? "Este link não é mais válido."
                 : "Escolha uma senha com pelo menos 8 caracteres para acessar o sistema."}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {ready === "checking" && (
-              <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
-                <Loader2 className="size-4 animate-spin" /> Validando o link...
-              </div>
-            )}
+            </p>
+          </div>
+          {ready === "checking" && (
+            <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" /> Validando o link...
+            </div>
+          )}
 
-            {ready === "expired" && (
-              <div className="space-y-4">
-                <p className="rounded-md bg-muted p-3 text-xs text-muted-foreground">
-                  O link de convite ou de redefinição expirou. Peça um novo link informando o seu
-                  e-mail.
+          {ready === "expired" && (
+            <div className="space-y-4">
+              <p className="rounded-xl border border-border/60 bg-secondary/40 p-3 text-xs text-muted-foreground">
+                O link de convite ou de redefinição expirou. Peça um novo link informando o seu
+                e-mail.
+              </p>
+              <div className="space-y-2">
+                <Label htmlFor="email-novo" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  E-mail
+                </Label>
+                <Input
+                  id="email-novo"
+                  type="email"
+                  className="h-11 rounded-xl border-border/60 bg-secondary/40 focus-visible:ring-primary/60"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </div>
+              <Button className="h-11 w-full rounded-xl font-semibold" onClick={askNewLink} type="button">
+                Enviar novo link
+              </Button>
+              <Button
+                variant="ghost"
+                className="w-full"
+                type="button"
+                onClick={() => navigate({ to: "/auth" })}
+              >
+                Voltar para o login
+              </Button>
+            </div>
+          )}
+
+          {ready === "ok" && (
+            <form className="space-y-4" onSubmit={handleSubmit}>
+              {email && (
+                <p className="text-xs text-muted-foreground">
+                  Conta: <span className="font-medium text-foreground">{email}</span>
                 </p>
-                <div className="space-y-2">
-                  <Label htmlFor="email-novo">E-mail</Label>
-                  <Input
-                    id="email-novo"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
-                </div>
-                <Button className="w-full" onClick={askNewLink} type="button">
-                  Enviar novo link
-                </Button>
-                <Button
-                  variant="ghost"
-                  className="w-full"
-                  type="button"
-                  onClick={() => navigate({ to: "/auth" })}
-                >
-                  Voltar para o login
-                </Button>
+              )}
+              <div className="space-y-2">
+                <Label htmlFor="senha" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Nova senha
+                </Label>
+                <Input
+                  id="senha"
+                  type="password"
+                  minLength={8}
+                  autoComplete="new-password"
+                  className="h-11 rounded-xl border-border/60 bg-secondary/40 focus-visible:ring-primary/60"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
               </div>
-            )}
-
-            {ready === "ok" && (
-              <form className="space-y-4" onSubmit={handleSubmit}>
-                {email && (
-                  <p className="text-xs text-muted-foreground">
-                    Conta: <span className="font-medium text-foreground">{email}</span>
-                  </p>
-                )}
-                <div className="space-y-2">
-                  <Label htmlFor="senha">Nova senha</Label>
-                  <Input
-                    id="senha"
-                    type="password"
-                    minLength={8}
-                    autoComplete="new-password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="senha2">Repetir a senha</Label>
-                  <Input
-                    id="senha2"
-                    type="password"
-                    minLength={8}
-                    autoComplete="new-password"
-                    value={confirm}
-                    onChange={(e) => setConfirm(e.target.value)}
-                    required
-                  />
-                </div>
-                <Button type="submit" className="w-full" disabled={busy}>
-                  {busy && <Loader2 className="mr-2 size-4 animate-spin" />}
-                  Salvar e entrar
-                </Button>
-              </form>
-            )}
-          </CardContent>
-        </Card>
+              <div className="space-y-2">
+                <Label htmlFor="senha2" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Repetir a senha
+                </Label>
+                <Input
+                  id="senha2"
+                  type="password"
+                  minLength={8}
+                  autoComplete="new-password"
+                  className="h-11 rounded-xl border-border/60 bg-secondary/40 focus-visible:ring-primary/60"
+                  value={confirm}
+                  onChange={(e) => setConfirm(e.target.value)}
+                  required
+                />
+              </div>
+              <Button
+                type="submit"
+                className="h-11 w-full rounded-xl font-semibold shadow-[0_10px_30px_-10px_color-mix(in_oklab,var(--primary)_70%,transparent)]"
+                disabled={busy}
+              >
+                {busy && <Loader2 className="mr-2 size-4 animate-spin" />}
+                Salvar e entrar
+              </Button>
+            </form>
+          )}
+        </div>
       </div>
-    </div>
+    </AuthBackdrop>
   );
 }
