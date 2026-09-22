@@ -226,25 +226,9 @@ function Painel() {
             {isLoading ? (
               <Skeleton className="h-52 w-full" />
             ) : (
-              <div className="h-52">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={months} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                    <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={11} />
-                    <YAxis allowDecimals={false} tickLine={false} axisLine={false} fontSize={11} />
-                    <Tooltip content={<ChartTooltip />} />
-                    <Line
-                      type="monotone"
-                      dataKey="total"
-                      name="Vínculos"
-                      stroke="var(--chart-2)"
-                      strokeWidth={2.5}
-                      dot={{ r: 3, fill: "var(--chart-2)" }}
-                      activeDot={{ r: 5 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
+              <Suspense fallback={<ChartFallback />}>
+                <MonthlyLine data={months} />
+              </Suspense>
             )}
           </CardContent>
         </Card>
