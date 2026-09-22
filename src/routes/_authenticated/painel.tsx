@@ -73,7 +73,8 @@ function Painel() {
         return all;
       }
 
-      const [assets, employees, timeline, agreements, assignments, signed] = await Promise.all([
+      const [assets, employees, timeline, agreements, assignments, signed, pending, active] =
+        await Promise.all([
         fetchAll((from, to) =>
           supabase
             .from("assets")
