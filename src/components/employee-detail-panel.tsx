@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Timeline, type TimelineEvent } from "@/components/timeline";
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, ChevronUp, ExternalLink, Pencil, Trash2 } from "lucide-react";
@@ -96,13 +97,60 @@ export function EmployeeDetailPanel({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("assignments")
-        .select("*, asset:assets(id,serial_number,brand,model,asset_type), agreements(id,status)")
+        .select(
+          "*, asset:assets(id,serial_number,brand,model,asset_type), agreements(id,status,signed_at)",
+        )
         .eq("employee_id", employeeId!)
         .order("assigned_at", { ascending: false });
       if (error) throw error;
       return data;
     },
   });
+
+  const timelineEvents = useMemo<TimelineEvent[]>(() => {
+    const events: TimelineEvent[] = [];
+    for (const h of history ?? []) {
+      const row = h as unknown as {
+        id: string;
+        assigned_at: string | null;
+        returned_at: string | null;
+        asset: { serial_number: string; brand: string | null; model: string | null } | null;
+        agreements: Array<{ id: string; status: string; signed_at: string | null }> | null;
+      };
+      const what =
+        `${row.asset?.brand ?? ""} ${row.asset?.model ?? ""}`.trim() ||
+        row.asset?.serial_number ||
+        "equipamento";
+      if (row.assigned_at)
+        events.push({
+          id: `a-${row.id}`,
+          at: row.assigned_at,
+          kind: "vinculo",
+          title: `Recebeu ${what}`,
+          description: row.asset?.serial_number ?? null,
+        });
+      if (row.returned_at)
+        events.push({
+          id: `d-${row.id}`,
+          at: row.returned_at,
+          kind: "devolucao",
+          title: `Devolveu ${what}`,
+          description: row.asset?.serial_number ?? null,
+        });
+      for (const ag of row.agreements ?? []) {
+        if (ag.signed_at)
+          events.push({
+            id: `s-${ag.id}`,
+            at: ag.signed_at,
+            kind: "assinatura",
+            title: "Termo assinado",
+            description: what,
+          });
+      }
+    }
+    return events;
+  }, [history]);
+
 
   useEffect(() => {
     if (!employee) return;
@@ -307,6 +355,7 @@ export function EmployeeDetailPanel({
                     <TabsTrigger value="dados">Detalhes</TabsTrigger>
                     <TabsTrigger value="equipamentos">Equipamentos</TabsTrigger>
                     <TabsTrigger value="documentos">Documentos</TabsTrigger>
+                    <TabsTrigger value="linha">Linha do tempo</TabsTrigger>
                   </TabsList>
 
                   <TabsContent value="dados" className="mt-5 space-y-4 animate-in fade-in-50">
@@ -426,6 +475,10 @@ export function EmployeeDetailPanel({
 
                   <TabsContent value="documentos" className="mt-5 animate-in fade-in-50">
                     {employeeId && <DocumentsPanel filter={{ employeeId }} />}
+                  </TabsContent>
+
+                  <TabsContent value="linha" className="mt-5 animate-in fade-in-50">
+                    <Timeline events={timelineEvents} />
                   </TabsContent>
                 </Tabs>
               </div>

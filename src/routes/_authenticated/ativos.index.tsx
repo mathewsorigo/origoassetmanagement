@@ -14,6 +14,12 @@ import {
 } from "lucide-react";
 import { SortableHead, TablePagination } from "@/components/data-table-ui";
 import { useTableState } from "@/hooks/useTableState";
+import { useColumns, useSavedViews, useViewMode } from "@/hooks/useTableView";
+import { ViewToggle } from "@/components/view-toggle";
+import { ColumnPicker } from "@/components/column-picker";
+import { SavedViews } from "@/components/saved-views";
+import { AssetCardGrid } from "@/components/asset-card-grid";
+import { EmptyState } from "@/components/empty-state";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
@@ -133,6 +139,29 @@ function Ativos() {
     title: string;
     serial: string;
   } | null>(null);
+
+  const [viewMode, setViewMode] = useViewMode("ativos");
+  const columns = useColumns("ativos", [
+    { id: "equipamento", label: "Equipamento", locked: true },
+    { id: "usuario", label: "Usuário atual" },
+    { id: "fornecedor", label: "Fornecedor" },
+    { id: "locacao", label: "Locação" },
+    { id: "situacao", label: "Situação", locked: true },
+  ]);
+  const savedViews = useSavedViews("ativos");
+  const currentFilters = {
+    term,
+    tipo: typeFilter,
+    situacao: statusFilter,
+    etiqueta: tagFilter,
+  };
+
+  function applyView(filters: Record<string, string>) {
+    setTerm(filters["term"] ?? "");
+    setTypeFilter(filters["tipo"] ?? "todos");
+    setStatusFilter(filters["situacao"] ?? "todos");
+    setTagFilter(filters["etiqueta"] ?? "todas");
+  }
 
   const { data: tagList } = useTags();
   const { data: assetTagMap } = useAssetTags();
@@ -321,6 +350,7 @@ function Ativos() {
   return (
     <div>
       <PageHeader
+        breadcrumb="Equipamentos"
         title="Ativos"
         description="Notebooks e celulares alugados pela Simpress e demais fornecedores."
         actions={
@@ -435,8 +465,69 @@ function Ativos() {
               “{term}” <X className="size-3" />
             </button>
           )}
+          <div className="ml-auto flex items-center gap-2">
+            <SavedViews
+              views={savedViews.views}
+              current={currentFilters}
+              onSave={savedViews.save}
+              onRemove={savedViews.remove}
+              onApply={applyView}
+            />
+            <ColumnPicker
+              columns={columns.all}
+              isVisible={columns.isVisible}
+              onToggle={columns.toggle}
+              onReset={columns.reset}
+            />
+            <ViewToggle mode={viewMode} onChange={setViewMode} />
+          </div>
         </div>
 
+        {viewMode === "cards" ? (
+          <div className="mt-3">
+            {!isLoading && filtered.length === 0 ? (
+              <EmptyState
+                icon={PackageSearch}
+                title="Nenhum equipamento encontrado"
+                description="Ajuste os filtros ou cadastre um novo equipamento."
+              />
+            ) : (
+              <AssetCardGrid
+                items={pageRows}
+                selectedId={selectedId}
+                checked={checked}
+                onOpen={(id) => setSelectedId(id)}
+                onToggleCheck={toggleRow}
+                tagsOf={(id) => assetTagMap?.get(id) ?? []}
+                holderOf={(id) => {
+                  const row = pageRows.find((x) => x.id === id);
+                  return row ? (holderOf(row)?.full_name ?? null) : null;
+                }}
+                actions={(item) =>
+                  canEdit ? (
+                    <RowActions
+                      onEdit={() => {
+                        setPanelMode("edit");
+                        setSelectedId(item.id);
+                      }}
+                      onDelete={() =>
+                        setDeleteTarget({
+                          id: item.id,
+                          title:
+                            `${item.brand ?? ""} ${item.model ?? ""}`.trim() || item.serial_number,
+                          serial: item.serial_number,
+                        })
+                      }
+                      extra={[
+                        { label: "Etiquetas", icon: Tags, onSelect: () => setTagTarget([item.id]) },
+                      ]}
+                    />
+                  ) : null
+                }
+              />
+            )}
+          </div>
+        ) : (
         <div className="mt-3 overflow-x-auto">
           <Table>
             <TableHeader>
@@ -448,15 +539,7 @@ function Ativos() {
                     aria-label="Selecionar todos"
                   />
                 </TableHead>
-                {(
-                  [
-                    ["equipamento", "Equipamento"],
-                    ["usuario", "Usuário atual"],
-                    ["fornecedor", "Fornecedor"],
-                    ["locacao", "Locação"],
-                    ["situacao", "Situação"],
-                  ] as const
-                ).map(([columnKey, label]) => (
+                {columns.columns.map(({ id: columnKey, label }) => (
                   <SortableHead
                     key={columnKey}
                     columnKey={columnKey}
@@ -473,7 +556,7 @@ function Ativos() {
               {isLoading &&
                 Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={`s-${i}`}>
-                    {Array.from({ length: 7 }).map((__, j) => (
+                    {Array.from({ length: columns.columns.length + 2 }).map((__, j) => (
                       <TableCell key={j}>
                         <Skeleton className="h-4 w-full max-w-40" />
                       </TableCell>
@@ -482,20 +565,12 @@ function Ativos() {
                 ))}
               {!isLoading && filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-12">
-                    <div className="flex flex-col items-center gap-3 text-center">
-                      <span className="flex size-14 items-center justify-center rounded-2xl border border-dashed border-primary/30 bg-primary/5 text-primary">
-                        <PackageSearch className="size-6" />
-                      </span>
-                      <div>
-                        <p className="font-display text-sm font-semibold">
-                          Nenhum equipamento encontrado
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Ajuste os filtros ou cadastre um novo ativo.
-                        </p>
-                      </div>
-                    </div>
+                  <TableCell colSpan={columns.columns.length + 2} className="py-8">
+                    <EmptyState
+                      icon={PackageSearch}
+                      title="Nenhum equipamento encontrado"
+                      description="Ajuste os filtros ou cadastre um novo equipamento."
+                    />
                   </TableCell>
                 </TableRow>
               )}
@@ -546,23 +621,31 @@ function Ativos() {
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell className="text-sm">
-                      {holder ? (
-                        holder.full_name
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-sm">{a.supplier ?? "—"}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {a.lease_end ? `até ${formatDate(a.lease_end)}` : "—"}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <StatusBadge value={a.status} />
-                        <SourceBadge intuneDeviceId={a.intune_device_id} />
-                      </div>
-                    </TableCell>
+                    {columns.isVisible("usuario") && (
+                      <TableCell className="text-[13px]">
+                        {holder ? (
+                          holder.full_name
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                    )}
+                    {columns.isVisible("fornecedor") && (
+                      <TableCell className="text-[13px]">{a.supplier ?? "—"}</TableCell>
+                    )}
+                    {columns.isVisible("locacao") && (
+                      <TableCell className="num text-xs text-muted-foreground">
+                        {a.lease_end ? `até ${formatDate(a.lease_end)}` : "—"}
+                      </TableCell>
+                    )}
+                    {columns.isVisible("situacao") && (
+                      <TableCell>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <StatusBadge value={a.status} />
+                          <SourceBadge intuneDeviceId={a.intune_device_id} />
+                        </div>
+                      </TableCell>
+                    )}
                     <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                       {canEdit && (
                         <RowActions
@@ -599,6 +682,7 @@ function Ativos() {
             </TableBody>
           </Table>
         </div>
+        )}
 
         <TablePagination
           className="-mx-4 mt-3 px-4"

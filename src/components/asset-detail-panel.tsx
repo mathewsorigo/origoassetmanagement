@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Timeline, type TimelineEvent } from "@/components/timeline";
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -174,6 +175,60 @@ export function AssetDetailPanel({
       return data;
     },
   });
+
+  const timelineEvents = useMemo<TimelineEvent[]>(() => {
+    const events: TimelineEvent[] = [];
+    for (const h of history ?? []) {
+      const row = h as unknown as {
+        id: string;
+        assigned_at: string | null;
+        returned_at: string | null;
+        employee: { full_name: string | null } | null;
+        agreements: Array<{ id: string; status: string; signed_at: string | null }> | null;
+      };
+      const who = row.employee?.full_name ?? "colaborador";
+      if (row.assigned_at)
+        events.push({
+          id: `a-${row.id}`,
+          at: row.assigned_at,
+          kind: "vinculo",
+          title: `Vinculado a ${who}`,
+        });
+      if (row.returned_at)
+        events.push({
+          id: `d-${row.id}`,
+          at: row.returned_at,
+          kind: "devolucao",
+          title: `Devolvido por ${who}`,
+        });
+      for (const ag of row.agreements ?? []) {
+        if (ag.signed_at)
+          events.push({
+            id: `s-${ag.id}`,
+            at: ag.signed_at,
+            kind: "assinatura",
+            title: "Termo de responsabilidade assinado",
+            description: who,
+          });
+      }
+    }
+    for (const item of activity ?? []) {
+      const row = item as unknown as {
+        id: string;
+        action: string;
+        created_at: string;
+        actor_email: string | null;
+      };
+      events.push({
+        id: `l-${row.id}`,
+        at: row.created_at,
+        kind: row.action.includes("criar") ? "criacao" : "alteracao",
+        title: row.action.replace(/_/g, " "),
+        by: row.actor_email || "Sistema",
+      });
+    }
+    return events;
+  }, [history, activity]);
 
   const { data: employees } = useQuery({
     queryKey: ["employees-simple"],
@@ -588,7 +643,7 @@ export function AssetDetailPanel({
                     <TabsTrigger value="detalhes">Detalhes</TabsTrigger>
                     <TabsTrigger value="uso">Uso</TabsTrigger>
                     <TabsTrigger value="documentos">Documentos</TabsTrigger>
-                    <TabsTrigger value="atividade">Atividade</TabsTrigger>
+                    <TabsTrigger value="atividade">Linha do tempo</TabsTrigger>
                   </TabsList>
 
                   <TabsContent value="detalhes" className="mt-5 space-y-4 animate-in fade-in-50">
@@ -795,26 +850,7 @@ export function AssetDetailPanel({
                   </TabsContent>
 
                   <TabsContent value="atividade" className="mt-5 animate-in fade-in-50">
-                    <div className="space-y-2">
-                      {(activity ?? []).length === 0 && (
-                        <p className="text-sm text-muted-foreground">
-                          Nenhuma alteração registrada para este equipamento.
-                        </p>
-                      )}
-                      {(activity ?? []).map((item) => (
-                        <div key={item.id} className="rounded-lg border p-3">
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <p className="text-sm font-medium capitalize">{item.action}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {formatDateTime(item.created_at)}
-                            </p>
-                          </div>
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            {item.actor_email || "Sistema"}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
+                    <Timeline events={timelineEvents} />
                   </TabsContent>
                 </Tabs>
               </div>

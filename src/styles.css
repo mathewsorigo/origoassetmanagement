@@ -59,12 +59,12 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-  --shadow-card: 0 1px 2px oklch(0.2 0.03 240 / 6%), 0 8px 24px -12px oklch(0.2 0.03 240 / 12%);
-  --shadow-elevated: 0 24px 48px -24px oklch(0.2 0.03 240 / 26%);
+  --shadow-card: 0 1px 1px oklch(0.2 0.03 240 / 4%), 0 4px 12px -8px oklch(0.2 0.03 240 / 10%);
+  --shadow-elevated: 0 16px 40px -24px oklch(0.2 0.03 240 / 22%);
 }
 
 :root {
-  --radius: 0.75rem;
+  --radius: 0.5rem;
   --background: oklch(0.985 0.004 200);
   --foreground: oklch(0.31 0.018 265);
   --card: oklch(1 0 0);
@@ -155,12 +155,11 @@
 
   body {
     background-color: var(--color-background);
-    background-image:
-      radial-gradient(60rem 30rem at 110% -10%, color-mix(in oklab, var(--primary) 9%, transparent), transparent),
-      radial-gradient(50rem 26rem at -10% 0%, color-mix(in oklab, var(--info) 7%, transparent), transparent);
-    background-attachment: fixed;
     color: var(--color-foreground);
     font-family: var(--font-sans);
+    font-size: 0.875rem;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
 
   h1,
@@ -168,14 +167,26 @@
   h3,
   .font-display {
     font-family: var(--font-display);
-    letter-spacing: -0.015em;
+    letter-spacing: -0.02em;
+    font-weight: 600;
   }
 
   th {
-    font-size: 0.72rem;
+    font-size: 0.6875rem;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.06em;
   }
+}
+
+@utility num {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+@utility panel {
+  background-color: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
 }
 
 @utility bg-brand-gradient {
