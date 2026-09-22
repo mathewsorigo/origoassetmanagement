@@ -43,6 +43,13 @@
       "when": 1790104934546,
       "tag": "0005_inventario_e_checklists",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790107366773,
+      "tag": "0006_restrict_access_allowlist_origo_domain",
+      "breakpoints": true
     }
   ]
 }

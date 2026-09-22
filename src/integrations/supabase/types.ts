@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      access_allowlist: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          email: string
+          full_name: string | null
+          id: string
+          note: string | null
+          roles: Database["public"]["Enums"]["app_role"][]
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          email: string
+          full_name?: string | null
+          id?: string
+          note?: string | null
+          roles?: Database["public"]["Enums"]["app_role"][]
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          email?: string
+          full_name?: string | null
+          id?: string
+          note?: string | null
+          roles?: Database["public"]["Enums"]["app_role"][]
+        }
+        Relationships: []
+      }
       agreement_reminders: {
         Row: {
           agreement_id: string
