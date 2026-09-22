@@ -362,6 +362,9 @@ function Administracao() {
         />
       </Card>
 
+      <AllowedEmailsCard />
+
+
       <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
         <DialogContent>
           <DialogHeader>
