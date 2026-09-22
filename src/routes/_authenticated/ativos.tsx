@@ -5,6 +5,7 @@ import { Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
+import { AssetIcon, SourceBadge } from "@/components/asset-visual";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -238,25 +239,23 @@ function Ativos() {
             <TableHeader>
               <TableRow>
                 <TableHead>Equipamento</TableHead>
-                <TableHead>Série / Patrimônio</TableHead>
                 <TableHead>Usuário atual</TableHead>
                 <TableHead>Fornecedor</TableHead>
                 <TableHead>Locação</TableHead>
-                <TableHead>Custo</TableHead>
                 <TableHead>Situação</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground">
+                  <TableCell colSpan={5} className="text-center text-muted-foreground">
                     Carregando…
                   </TableCell>
                 </TableRow>
               )}
               {!isLoading && filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground">
+                  <TableCell colSpan={5} className="text-center text-muted-foreground">
                     Nenhum ativo encontrado.
                   </TableCell>
                 </TableRow>
@@ -266,22 +265,22 @@ function Ativos() {
                 return (
                   <TableRow key={a.id}>
                     <TableCell>
-                      <Link
-                        to="/ativos/$id"
-                        params={{ id: a.id }}
-                        className="font-medium text-foreground hover:text-primary hover:underline"
-                      >
-                        {a.brand} {a.model}
-                      </Link>
-                      <p className="text-xs text-muted-foreground">
-                        {assetTypeLabel[a.asset_type]}
-                      </p>
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {a.serial_number}
-                      {a.patrimony && (
-                        <p className="text-xs text-muted-foreground">Pat. {a.patrimony}</p>
-                      )}
+                      <div className="flex items-center gap-3">
+                        <AssetIcon type={a.asset_type} />
+                        <div className="min-w-0">
+                          <Link
+                            to="/ativos/$id"
+                            params={{ id: a.id }}
+                            className="font-medium text-foreground hover:text-primary hover:underline"
+                          >
+                            {`${a.brand ?? ""} ${a.model ?? ""}`.trim() || a.serial_number}
+                          </Link>
+                          <p className="text-xs text-muted-foreground">
+                            {assetTypeLabel[a.asset_type]} · Série {a.serial_number}
+                            {a.patrimony ? ` · Pat. ${a.patrimony}` : ""}
+                          </p>
+                        </div>
+                      </div>
                     </TableCell>
                     <TableCell className="text-sm">
                       {holder ? (
@@ -300,9 +299,11 @@ function Ativos() {
                     <TableCell className="text-xs text-muted-foreground">
                       {a.lease_end ? `até ${formatDate(a.lease_end)}` : "—"}
                     </TableCell>
-                    <TableCell className="text-sm">{formatMoney(a.monthly_cost)}</TableCell>
                     <TableCell>
-                      <StatusBadge value={a.status} />
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <StatusBadge value={a.status} />
+                        <SourceBadge intuneDeviceId={a.intune_device_id} />
+                      </div>
                     </TableCell>
                   </TableRow>
                 );

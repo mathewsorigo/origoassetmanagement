@@ -34,7 +34,7 @@ export function AssetIcon({
   );
 }
 
-export function SourceBadge({ intuneDeviceId }: { intuneDeviceId?: string | null }) {
+export function SourceBadge({ intuneDeviceId }: { intuneDeviceId?: string | null | undefined }) {
   if (!intuneDeviceId) return null;
   return (
     <Badge variant="outline" className="border-accent/40 bg-accent/10 font-medium text-accent">
