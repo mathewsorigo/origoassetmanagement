@@ -56,7 +56,8 @@ const navItems = [
   { to: "/termos", label: "Termos", icon: FileSignature, need: "any" },
   { to: "/importacao", label: "Importar", icon: Upload, need: "operator" },
   { to: "/integracoes", label: "Integrar", icon: Plug, need: "manager" },
-  { to: "/administracao", label: "Admin", icon: Settings, need: "admin" },
+  { to: "/administracao", label: "Acessos", icon: ShieldCheck, need: "admin" },
+  { to: "/configuracoes", label: "Config.", icon: Settings, need: "any" },
   { to: "/auditoria", label: "Auditoria", icon: ScrollText, need: "manager" },
 ] as const;
 
