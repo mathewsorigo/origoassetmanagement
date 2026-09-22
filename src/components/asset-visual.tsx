@@ -2,6 +2,7 @@ import { Laptop, Smartphone, Monitor, Cable, Package } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { modelImage } from "@/lib/model-images";
 
 const icons: Record<string, LucideIcon> = {
   notebook: Laptop,
