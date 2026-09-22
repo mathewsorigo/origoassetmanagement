@@ -533,6 +533,12 @@ export function AssetDetailPanel({
                   </div>
                 </div>
 
+                {asset && (
+                  <div className="mt-6">
+                    <AssetQrButton asset={asset} className={actionClass} />
+                  </div>
+                )}
+
                 {canEdit && (
                   <div className="mt-6 space-y-2">
                     <p className="text-[0.7rem] font-semibold uppercase tracking-wide text-muted-foreground">
