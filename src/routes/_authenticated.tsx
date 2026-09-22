@@ -1,3 +1,4 @@
+import { OrigoSimbolo } from "@/components/brand-logo";
 import { createFileRoute, Outlet, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import {
@@ -79,11 +80,9 @@ function AuthenticatedLayout() {
         )}
       >
         <div className="flex h-16 items-center gap-3 px-5">
-          <div className="flex size-9 items-center justify-center rounded-lg bg-brand-gradient text-base font-bold text-primary-foreground">
-            Ó
-          </div>
+          <OrigoSimbolo />
           <div className="leading-tight">
-            <p className="font-display text-sm font-semibold">Órigo Ativos</p>
+            <p className="font-display text-sm font-semibold">Órigo Asset Management</p>
             <p className="text-[11px] text-sidebar-foreground/70">Gestão de equipamentos</p>
           </div>
         </div>
