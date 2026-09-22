@@ -161,7 +161,8 @@ export function AuthScreen() {
         <div className="mb-6 space-y-1.5">
           <h1 className="text-xl font-semibold tracking-tight">Acessar o sistema</h1>
           <p className="text-sm text-muted-foreground">
-            Use seu e-mail corporativo. Novas contas são criadas pelo administrador.
+            Acesso restrito a e-mails @origoenergia.com.br previamente liberados pelo
+            administrador.
           </p>
         </div>
 
