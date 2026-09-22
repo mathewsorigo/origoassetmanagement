@@ -111,7 +111,21 @@ export const inviteAccessUser = createServerFn({ method: "POST" })
     await assertAdmin(context as never);
     if (!data.email) throw new Error("Informe o e-mail.");
     if (!data.fullName) throw new Error("Informe o nome completo.");
+    if (!data.email.endsWith("@origoenergia.com.br")) {
+      throw new Error("Somente e-mails @origoenergia.com.br podem ter acesso ao sistema.");
+    }
     const db = await admin();
+
+    // libera o e-mail antes de criar a conta (o banco só aceita e-mails liberados)
+    await db.from("access_allowlist").upsert(
+      {
+        email: data.email,
+        full_name: data.fullName,
+        roles: (data.roles.length ? data.roles : ["colaborador"]) as never,
+        created_by: context.userId,
+      },
+      { onConflict: "email" },
+    );
 
     const { data: invited, error } = await db.auth.admin.inviteUserByEmail(data.email, {
       redirectTo: `${data.origin}/definir-senha`,
@@ -237,10 +251,112 @@ export const revokeAccessUser = createServerFn({ method: "POST" })
       throw new Error("Você não pode excluir a sua própria conta.");
     }
     const db = await admin();
+    const { data: gone } = await db
+      .from("profiles")
+      .select("email")
+      .eq("id", data.userId)
+      .maybeSingle();
     await db.from("user_roles").delete().eq("user_id", data.userId);
     await db.from("profiles").delete().eq("id", data.userId);
+    if (gone?.email) {
+      await db.from("access_allowlist").delete().eq("email", gone.email.toLowerCase());
+    }
     const { error } = await db.auth.admin.deleteUser(data.userId);
     if (error) throw new Error(error.message);
     await writeAudit(context.userId, context.claims?.email ?? null, "excluir_acesso", data.userId, {});
+    return { ok: true };
+  });
+
+// ---------------------------------------------------------------------------
+// Lista de e-mails liberados (allowlist) — somente estes conseguem entrar
+// ---------------------------------------------------------------------------
+
+export const ALLOWED_EMAIL_DOMAIN = "origoenergia.com.br";
+
+export type AllowedEmail = {
+  id: string;
+  email: string;
+  full_name: string | null;
+  roles: AdminRole[];
+  note: string | null;
+  created_at: string;
+  has_account: boolean;
+};
+
+export const listAllowedEmails = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<AllowedEmail[]> => {
+    await assertAdmin(context as never);
+    const db = await admin();
+    const [{ data: rows }, { data: profiles }] = await Promise.all([
+      db.from("access_allowlist").select("*").order("email"),
+      db.from("profiles").select("email"),
+    ]);
+    const accounts = new Set(
+      (profiles ?? []).map((p) => (p.email ?? "").toLowerCase()).filter(Boolean),
+    );
+    return (rows ?? []).map((r) => ({
+      id: r.id,
+      email: r.email,
+      full_name: r.full_name ?? null,
+      roles: parseRoles(r.roles ?? []),
+      note: r.note ?? null,
+      created_at: r.created_at,
+      has_account: accounts.has(r.email.toLowerCase()),
+    }));
+  });
+
+function assertOrigoEmail(email: string) {
+  if (!email.endsWith(`@${ALLOWED_EMAIL_DOMAIN}`)) {
+    throw new Error(`Somente e-mails @${ALLOWED_EMAIL_DOMAIN} podem ser liberados.`);
+  }
+}
+
+export const addAllowedEmail = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { email: string; fullName?: string; roles?: string[]; note?: string }) => ({
+    email: input.email.trim().toLowerCase(),
+    fullName: (input.fullName ?? "").trim(),
+    roles: parseRoles(input.roles ?? []),
+    note: (input.note ?? "").trim(),
+  }))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context as never);
+    if (!data.email) throw new Error("Informe o e-mail.");
+    assertOrigoEmail(data.email);
+    const db = await admin();
+    const roles = data.roles.length ? data.roles : (["colaborador"] as AdminRole[]);
+    const { error } = await db.from("access_allowlist").upsert(
+      {
+        email: data.email,
+        full_name: data.fullName || null,
+        roles: roles as never,
+        note: data.note || null,
+        created_by: context.userId,
+      },
+      { onConflict: "email" },
+    );
+    if (error) throw new Error(error.message);
+    await writeAudit(context.userId, context.claims?.email ?? null, "liberar_email", null, {
+      email: data.email,
+      roles,
+    });
+    return { ok: true };
+  });
+
+export const removeAllowedEmail = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { email: string }) => ({ email: input.email.trim().toLowerCase() }))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context as never);
+    if (data.email === (context.claims?.email ?? "").toLowerCase()) {
+      throw new Error("Você não pode remover a liberação do seu próprio e-mail.");
+    }
+    const db = await admin();
+    const { error } = await db.from("access_allowlist").delete().eq("email", data.email);
+    if (error) throw new Error(error.message);
+    await writeAudit(context.userId, context.claims?.email ?? null, "bloquear_email", null, {
+      email: data.email,
+    });
     return { ok: true };
   });

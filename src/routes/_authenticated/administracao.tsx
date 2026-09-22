@@ -56,6 +56,7 @@ import {
 } from "@/components/ui/table";
 import { roleLabel, formatDate } from "@/lib/format";
 import { SortableHead, TablePagination } from "@/components/data-table-ui";
+import { AllowedEmailsCard } from "@/components/allowed-emails-card";
 import { useTableState } from "@/hooks/useTableState";
 import {
   inviteAccessUser,
@@ -361,6 +362,9 @@ function Administracao() {
           onPageSizeChange={table.setPageSize}
         />
       </Card>
+
+      <AllowedEmailsCard />
+
 
       <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
         <DialogContent>

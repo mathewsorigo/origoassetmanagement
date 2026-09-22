@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import { OrigoSimbolo } from "@/components/brand-logo";
 import {
   createFileRoute,
@@ -71,8 +72,10 @@ function AuthenticatedLayout() {
   const navigate = useNavigate();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { data: roles } = useRoles(user);
-  const { data: profile } = useProfile(user);
+  const rolesQuery = useRoles(user);
+  const profileQuery = useProfile(user);
+  const roles = rolesQuery.data;
+  const profile = profileQuery.data;
   const [open, setOpen] = useState(false);
   const [tagsOpen, setTagsOpen] = useState(false);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -96,6 +99,42 @@ function AuthenticatedLayout() {
       navigate({ to: "/auth", replace: true });
     }
   }, [loading, session, navigate]);
+
+  // Só entram contas @origoenergia.com.br previamente liberadas e ativas.
+  useEffect(() => {
+    if (loading || !session || !user) return;
+    if (!rolesQuery.isFetched || !profileQuery.isFetched) return;
+
+    const email = (user.email ?? "").toLowerCase();
+    const wrongDomain = !email.endsWith("@origoenergia.com.br");
+    const noAccess = (rolesQuery.data ?? []).length === 0;
+    const disabled = profileQuery.data?.status === "desativado";
+    if (!wrongDomain && !noAccess && !disabled) return;
+
+    const reason = wrongDomain
+      ? "Use sua conta corporativa @origoenergia.com.br."
+      : disabled
+        ? "Sua conta está desativada. Fale com um administrador."
+        : "Seu e-mail ainda não foi liberado por um administrador.";
+
+    void (async () => {
+      await queryClient.cancelQueries();
+      queryClient.clear();
+      await supabase.auth.signOut();
+      toast.error("Acesso não autorizado", { description: reason });
+      navigate({ to: "/auth", replace: true });
+    })();
+  }, [
+    loading,
+    session,
+    user,
+    rolesQuery.isFetched,
+    rolesQuery.data,
+    profileQuery.isFetched,
+    profileQuery.data,
+    queryClient,
+    navigate,
+  ]);
 
   async function signOut() {
     await queryClient.cancelQueries();
