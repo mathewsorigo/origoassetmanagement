@@ -460,6 +460,12 @@ function Vinculos() {
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
               />
             </div>
+            <ChecklistFields
+              items={checklist}
+              onChange={setChecklist}
+              photos={checklistPhotos}
+              onPhotos={setChecklistPhotos}
+            />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>
@@ -480,12 +486,20 @@ function Vinculos() {
               O equipamento volta para a situação "Disponível".
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2">
-            <Label>Condição na devolução</Label>
-            <Textarea
-              value={returnCondition}
-              onChange={(e) => setReturnCondition(e.target.value)}
-              placeholder="Ex.: equipamento em bom estado, com carregador"
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Condição na devolução</Label>
+              <Textarea
+                value={returnCondition}
+                onChange={(e) => setReturnCondition(e.target.value)}
+                placeholder="Ex.: equipamento em bom estado, com carregador"
+              />
+            </div>
+            <ChecklistFields
+              items={returnChecklist}
+              onChange={setReturnChecklist}
+              photos={returnPhotos}
+              onPhotos={setReturnPhotos}
             />
           </div>
           <DialogFooter>
