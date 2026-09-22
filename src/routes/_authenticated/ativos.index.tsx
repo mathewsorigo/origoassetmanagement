@@ -302,7 +302,7 @@ function Ativos() {
               {isLoading &&
                 Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={`s-${i}`}>
-                    {Array.from({ length: 5 }).map((__, j) => (
+                    {Array.from({ length: 6 }).map((__, j) => (
                       <TableCell key={j}>
                         <Skeleton className="h-4 w-full max-w-40" />
                       </TableCell>
@@ -311,7 +311,7 @@ function Ativos() {
                 ))}
               {!isLoading && filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="py-12">
+                  <TableCell colSpan={6} className="py-12">
                     <div className="flex flex-col items-center gap-3 text-center">
                       <span className="flex size-14 items-center justify-center rounded-2xl border border-dashed border-primary/30 bg-primary/5 text-primary">
                         <PackageSearch className="size-6" />
@@ -377,6 +377,24 @@ function Ativos() {
                         <SourceBadge intuneDeviceId={a.intune_device_id} />
                       </div>
                     </TableCell>
+                    <TableCell className="text-right">
+                      {canEdit && (
+                        <RowActions
+                          onEdit={() => {
+                            setPanelMode("edit");
+                            setSelectedId(a.id);
+                          }}
+                          onDelete={() =>
+                            setDeleteTarget({
+                              id: a.id,
+                              title:
+                                `${a.brand ?? ""} ${a.model ?? ""}`.trim() || a.serial_number,
+                              serial: a.serial_number,
+                            })
+                          }
+                        />
+                      )}
+                    </TableCell>
                   </TableRow>
                 );
               })}
@@ -387,7 +405,13 @@ function Ativos() {
 
       <AssetDetailPanel
         assetId={selectedId}
-        onOpenChange={(v) => !v && setSelectedId(null)}
+        initialMode={panelMode}
+        onOpenChange={(v) => {
+          if (!v) {
+            setSelectedId(null);
+            setPanelMode("view");
+          }
+        }}
         onNavigate={(dir) => {
           const i = filtered.findIndex((a) => a.id === selectedId);
           if (i < 0) return;
@@ -395,6 +419,30 @@ function Ativos() {
           if (next) setSelectedId(next.id);
         }}
       />
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(v) => !v && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-display">Excluir equipamento?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget?.title} · série {deleteTarget?.serial}. O histórico de vínculos, termos
+              e documentos deste equipamento também serão apagados. Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={removeAsset.isPending}
+              onClick={(e) => {
+                e.preventDefault();
+                removeAsset.mutate();
+              }}
+            >
+              Excluir definitivamente
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
