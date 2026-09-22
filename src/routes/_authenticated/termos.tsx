@@ -149,6 +149,7 @@ function Termos() {
   return (
     <div>
       <PageHeader
+        breadcrumb="Termos de uso"
         title="Termos de uso"
         description="Cada vínculo gera um termo preenchido. Envie para assinatura e o documento assinado fica no histórico."
       />

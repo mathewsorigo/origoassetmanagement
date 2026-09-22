@@ -265,6 +265,7 @@ function Pessoas() {
   return (
     <div>
       <PageHeader
+        breadcrumb="Colaboradores"
         title="Colaboradores"
         description="Cadastro das pessoas que utilizam os equipamentos da Órigo."
         actions={

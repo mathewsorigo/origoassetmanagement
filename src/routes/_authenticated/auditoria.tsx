@@ -56,7 +56,7 @@ function Auditoria() {
 
   return (
     <div>
-      <PageHeader title="Auditoria" description="Últimas 300 ações registradas no sistema." />
+      <PageHeader breadcrumb="Auditoria" title="Auditoria" description="Últimas 300 ações registradas no sistema." />
       <Card className="overflow-x-auto p-4">
         <Table>
           <TableHeader>

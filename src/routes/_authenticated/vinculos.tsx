@@ -218,6 +218,7 @@ function Vinculos() {
   return (
     <div>
       <PageHeader
+        breadcrumb="Vínculos"
         title="Vínculos"
         description="Entregas e devoluções. Ao vincular, o termo de uso é preenchido automaticamente."
         actions={
