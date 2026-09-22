@@ -8,20 +8,17 @@ import {
   CalendarClock,
   CheckCircle2,
 } from "lucide-react";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Line,
-  LineChart,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { lazy, Suspense } from "react";
+
+const StatusDonut = lazy(() =>
+  import("@/components/painel-charts").then((m) => ({ default: m.StatusDonut })),
+);
+const TypeBars = lazy(() =>
+  import("@/components/painel-charts").then((m) => ({ default: m.TypeBars })),
+);
+const MonthlyLine = lazy(() =>
+  import("@/components/painel-charts").then((m) => ({ default: m.MonthlyLine })),
+);
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
