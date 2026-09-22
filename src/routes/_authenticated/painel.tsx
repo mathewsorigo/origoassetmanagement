@@ -50,26 +50,8 @@ const statusColors: Record<string, string> = {
   extraviado: "var(--destructive)",
 };
 
-function ChartTooltip({
-  active,
-  payload,
-  label,
-}: {
-  active?: boolean;
-  payload?: Array<{ name?: string; value?: number | string }>;
-  label?: string | number;
-}) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="rounded-lg border bg-popover px-3 py-2 text-xs shadow-[var(--shadow-elevated)]">
-      {label !== undefined && <p className="font-medium">{label}</p>}
-      {payload.map((p, i) => (
-        <p key={i} className="text-muted-foreground">
-          {p.name}: <span className="font-semibold text-foreground">{p.value}</span>
-        </p>
-      ))}
-    </div>
-  );
+function ChartFallback() {
+  return <Skeleton className="h-52 w-full" />;
 }
 
 function Painel() {
