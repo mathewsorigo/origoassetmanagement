@@ -494,7 +494,7 @@ function Ativos() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-3">
-                        <AssetIcon type={a.asset_type} />
+                        <AssetIcon type={a.asset_type} model={a.model} />
                         <div className="min-w-0">
                           <p
                             className={cn(
