@@ -92,8 +92,7 @@ export function AuthScreen() {
   const navigate = useNavigate();
   const { session, loading } = useSession();
   const [busy, setBusy] = useState(false);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+
 
   const goToApp = useCallback(() => {
     const pending = takePendingQr();
