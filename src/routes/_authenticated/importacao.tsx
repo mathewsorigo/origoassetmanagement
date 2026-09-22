@@ -125,7 +125,7 @@ function Importacao() {
   const run = useMutation({
     mutationFn: async () => {
       if (!file) throw new Error("Selecione a planilha.");
-      const rows = readSpreadsheet(await file.arrayBuffer());
+      const rows = await readSpreadsheet(await file.arrayBuffer());
       if (rows.length === 0) throw new Error("A planilha está vazia.");
 
       const { data: batch, error: batchError } = await supabase
