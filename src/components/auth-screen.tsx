@@ -107,17 +107,6 @@ export function AuthScreen() {
     if (!loading && session) goToApp();
   }, [loading, session, goToApp]);
 
-  async function handleLogin(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setBusy(false);
-    if (error) {
-      toast.error("Não foi possível entrar", { description: error.message });
-      return;
-    }
-    goToApp();
-  }
 
   async function handleMicrosoft() {
     setBusy(true);
