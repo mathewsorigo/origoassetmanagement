@@ -29,6 +29,7 @@ import { Route as AuthenticatedAtivosIdRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedInventarioSessionIdRouteImport } from './routes/_authenticated/inventario.$sessionId'
 import { Route as AuthenticatedPessoasIndexRouteImport } from './routes/_authenticated/pessoas.index'
 import { Route as AuthenticatedPessoasIdRouteImport } from './routes/_authenticated/pessoas.$id'
+import { Route as AuthenticatedQrAssetIdRouteImport } from './routes/_authenticated/qr.$assetId'
 import { Route as ApiPublicHermesAssinaturaRouteImport } from './routes/api/public/hermes.assinatura'
 
 const IndexRoute = IndexRouteImport.update({
@@ -136,6 +137,11 @@ const AuthenticatedPessoasIdRoute = AuthenticatedPessoasIdRouteImport.update({
   path: '/pessoas/$id',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedQrAssetIdRoute = AuthenticatedQrAssetIdRouteImport.update({
+  id: '/qr/$assetId',
+  path: '/qr/$assetId',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const ApiPublicHermesAssinaturaRoute =
   ApiPublicHermesAssinaturaRouteImport.update({
     id: '/api/public/hermes/assinatura',
@@ -161,6 +167,7 @@ export interface FileRoutesByFullPath {
   '/ativos/$id': typeof AuthenticatedAtivosIdRoute
   '/inventario/$sessionId': typeof AuthenticatedInventarioSessionIdRoute
   '/pessoas/$id': typeof AuthenticatedPessoasIdRoute
+  '/qr/$assetId': typeof AuthenticatedQrAssetIdRoute
   '/ativos/': typeof AuthenticatedAtivosIndexRoute
   '/pessoas/': typeof AuthenticatedPessoasIndexRoute
   '/api/public/hermes/assinatura': typeof ApiPublicHermesAssinaturaRoute
@@ -183,6 +190,7 @@ export interface FileRoutesByTo {
   '/ativos/$id': typeof AuthenticatedAtivosIdRoute
   '/inventario/$sessionId': typeof AuthenticatedInventarioSessionIdRoute
   '/pessoas/$id': typeof AuthenticatedPessoasIdRoute
+  '/qr/$assetId': typeof AuthenticatedQrAssetIdRoute
   '/ativos': typeof AuthenticatedAtivosIndexRoute
   '/pessoas': typeof AuthenticatedPessoasIndexRoute
   '/api/public/hermes/assinatura': typeof ApiPublicHermesAssinaturaRoute
@@ -207,6 +215,7 @@ export interface FileRoutesById {
   '/_authenticated/ativos/$id': typeof AuthenticatedAtivosIdRoute
   '/_authenticated/inventario/$sessionId': typeof AuthenticatedInventarioSessionIdRoute
   '/_authenticated/pessoas/$id': typeof AuthenticatedPessoasIdRoute
+  '/_authenticated/qr/$assetId': typeof AuthenticatedQrAssetIdRoute
   '/_authenticated/ativos/': typeof AuthenticatedAtivosIndexRoute
   '/_authenticated/pessoas/': typeof AuthenticatedPessoasIndexRoute
   '/api/public/hermes/assinatura': typeof ApiPublicHermesAssinaturaRoute
@@ -231,6 +240,7 @@ export interface FileRouteTypes {
     | '/ativos/$id'
     | '/inventario/$sessionId'
     | '/pessoas/$id'
+    | '/qr/$assetId'
     | '/ativos/'
     | '/pessoas/'
     | '/api/public/hermes/assinatura'
@@ -253,6 +263,7 @@ export interface FileRouteTypes {
     | '/ativos/$id'
     | '/inventario/$sessionId'
     | '/pessoas/$id'
+    | '/qr/$assetId'
     | '/ativos'
     | '/pessoas'
     | '/api/public/hermes/assinatura'
@@ -276,6 +287,7 @@ export interface FileRouteTypes {
     | '/_authenticated/ativos/$id'
     | '/_authenticated/inventario/$sessionId'
     | '/_authenticated/pessoas/$id'
+    | '/_authenticated/qr/$assetId'
     | '/_authenticated/ativos/'
     | '/_authenticated/pessoas/'
     | '/api/public/hermes/assinatura'
@@ -432,6 +444,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPessoasIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/qr/$assetId': {
+      id: '/_authenticated/qr/$assetId'
+      path: '/qr/$assetId'
+      fullPath: '/qr/$assetId'
+      preLoaderRoute: typeof AuthenticatedQrAssetIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/api/public/hermes/assinatura': {
       id: '/api/public/hermes/assinatura'
       path: '/api/public/hermes/assinatura'
@@ -470,6 +489,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedVinculosRoute: typeof AuthenticatedVinculosRoute
   AuthenticatedAtivosIdRoute: typeof AuthenticatedAtivosIdRoute
   AuthenticatedPessoasIdRoute: typeof AuthenticatedPessoasIdRoute
+  AuthenticatedQrAssetIdRoute: typeof AuthenticatedQrAssetIdRoute
   AuthenticatedAtivosIndexRoute: typeof AuthenticatedAtivosIndexRoute
   AuthenticatedPessoasIndexRoute: typeof AuthenticatedPessoasIndexRoute
 }
@@ -487,6 +507,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedVinculosRoute: AuthenticatedVinculosRoute,
   AuthenticatedAtivosIdRoute: AuthenticatedAtivosIdRoute,
   AuthenticatedPessoasIdRoute: AuthenticatedPessoasIdRoute,
+  AuthenticatedQrAssetIdRoute: AuthenticatedQrAssetIdRoute,
   AuthenticatedAtivosIndexRoute: AuthenticatedAtivosIndexRoute,
   AuthenticatedPessoasIndexRoute: AuthenticatedPessoasIndexRoute,
 }
