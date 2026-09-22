@@ -262,7 +262,7 @@ function AtivoDetalhe() {
             {canEdit && (
               <>
                 <Button
-                  className="w-full justify-start"
+                  className="h-auto w-full justify-start whitespace-normal py-2 text-left"
                   disabled={!!active}
                   onClick={() => setAssignOpen(true)}
                 >
@@ -270,7 +270,7 @@ function AtivoDetalhe() {
                 </Button>
                 <Button
                   variant="outline"
-                  className="w-full justify-start"
+                  className="h-auto w-full justify-start whitespace-normal py-2 text-left"
                   disabled={!active}
                   onClick={() => setReturnOpen(true)}
                 >
@@ -278,7 +278,7 @@ function AtivoDetalhe() {
                 </Button>
                 <Button
                   variant="outline"
-                  className="w-full justify-start"
+                  className="h-auto w-full justify-start whitespace-normal py-2 text-left"
                   disabled={!activeAgreement || activeAgreement.status === "assinado" || send.isPending}
                   onClick={() => activeAgreement && send.mutate(activeAgreement.id)}
                 >
@@ -287,7 +287,7 @@ function AtivoDetalhe() {
                 {asset?.status === "manutencao" ? (
                   <Button
                     variant="outline"
-                    className="w-full justify-start"
+                    className="h-auto w-full justify-start whitespace-normal py-2 text-left"
                     onClick={() => changeStatus.mutate("disponivel")}
                   >
                     <Wrench className="mr-2 size-4" /> Voltar para disponível
@@ -295,7 +295,7 @@ function AtivoDetalhe() {
                 ) : (
                   <Button
                     variant="outline"
-                    className="w-full justify-start"
+                    className="h-auto w-full justify-start whitespace-normal py-2 text-left"
                     disabled={!!active}
                     onClick={() => changeStatus.mutate("manutencao")}
                   >
