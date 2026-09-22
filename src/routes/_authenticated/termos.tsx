@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
-import { Send, Upload, Eye, Loader2 } from "lucide-react";
+import { Send, Upload, Eye, Loader2, BellRing } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
@@ -92,6 +92,58 @@ function Termos() {
     },
   });
 
+  const statusCounts = (agreements ?? []).reduce<Record<string, number>>((acc, a) => {
+    acc[a.status] = (acc[a.status] ?? 0) + 1;
+    return acc;
+  }, {});
+  const signedTotal = statusCounts["assinado"] ?? 0;
+  const pendingTotal = (agreements ?? []).length - signedTotal - (statusCounts["recusado"] ?? 0);
+  const signedPct =
+    signedTotal + pendingTotal > 0
+      ? Math.round((signedTotal / (signedTotal + pendingTotal)) * 100)
+      : 100;
+
+  const remind = useMutation({
+    mutationFn: async () => {
+      const { data: settings } = await supabase
+        .from("app_settings")
+        .select("value")
+        .eq("key", "termos")
+        .maybeSingle();
+      const value = (settings?.value ?? {}) as Record<string, unknown>;
+      const prazo = Number(value["prazo_dias"]) > 0 ? Number(value["prazo_dias"]) : 7;
+      const cutoff = new Date(Date.now() - prazo * 24 * 60 * 60 * 1000).toISOString();
+      const overdue = (agreements ?? []).filter(
+        (a) =>
+          ["rascunho", "enviado", "visualizado"].includes(a.status) &&
+          (a.sent_at ?? a.created_at) < cutoff,
+      );
+      if (overdue.length === 0) return { count: 0, prazo };
+      const { error } = await supabase.from("agreement_reminders").insert(
+        overdue.map((a) => ({
+          agreement_id: a.id,
+          sent_by: user?.id ?? null,
+          note: `Cobrança registrada após ${prazo} dias sem assinatura`,
+        })),
+      );
+      if (error) throw error;
+      await logAudit({
+        action: "cobrar_termos",
+        entity: "agreements",
+        details: { total: overdue.length, prazo_dias: prazo },
+      });
+      return { count: overdue.length, prazo };
+    },
+    onSuccess: ({ count, prazo }) => {
+      if (count === 0) toast.info(`Nenhum termo pendente além de ${prazo} dias.`);
+      else
+        toast.success(
+          `${count} cobrança(s) registrada(s) na linha do tempo e na auditoria. O envio do e-mail/Docusign segue pelo hermes-agent.`,
+        );
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const send = useMutation({
     mutationFn: async (agreementId: string) => enviar({ data: { agreementId } }),
     onSuccess: (res) => {
@@ -152,7 +204,44 @@ function Termos() {
         breadcrumb="Termos de uso"
         title="Termos de uso"
         description="Cada vínculo gera um termo preenchido. Envie para assinatura e o documento assinado fica no histórico."
+        actions={
+          canEdit ? (
+            <Button variant="outline" onClick={() => remind.mutate()} disabled={remind.isPending}>
+              {remind.isPending ? (
+                <Loader2 className="mr-2 size-4 animate-spin" />
+              ) : (
+                <BellRing className="mr-2 size-4" />
+              )}
+              Cobrar pendentes
+            </Button>
+          ) : undefined
+        }
       />
+
+      <Card className="mb-4 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-4 text-sm">
+            <span>
+              <span className="font-semibold tabular-nums text-success">{signedTotal}</span>{" "}
+              <span className="text-muted-foreground">assinados</span>
+            </span>
+            <span>
+              <span className="font-semibold tabular-nums text-warning">{pendingTotal}</span>{" "}
+              <span className="text-muted-foreground">pendentes</span>
+            </span>
+            <span>
+              <span className="font-semibold tabular-nums">{signedPct}%</span>{" "}
+              <span className="text-muted-foreground">de adimplência</span>
+            </span>
+          </div>
+          <div className="h-2 min-w-40 flex-1 overflow-hidden rounded-full bg-muted sm:max-w-xs">
+            <div
+              className="h-full rounded-full bg-success transition-all duration-700"
+              style={{ width: `${signedPct}%` }}
+            />
+          </div>
+        </div>
+      </Card>
 
       <Card className="overflow-x-auto p-4">
         <Table>
