@@ -34,11 +34,6 @@ export function AuthBackdrop({ children }: { children: React.ReactNode }) {
           />
         </div>
 
-        <div className="relative">
-          <span className="text-sm font-semibold uppercase tracking-[0.22em] text-primary/90">
-            ÓRIGO ASSET MANAGEMENT
-          </span>
-        </div>
 
         <div className="relative max-w-md space-y-6">
           <h2 className="text-balance text-3xl font-semibold leading-tight tracking-tight text-foreground sm:text-4xl">
@@ -150,11 +145,8 @@ export function AuthScreen() {
   return (
     <AuthBackdrop>
       <div className="animate-in fade-in-50 slide-in-from-bottom-3 duration-700">
-        <div className="mb-8 flex flex-col items-center gap-3">
+        <div className="mb-8 flex justify-center">
           <OrigoLogo className="h-24" />
-          <p className="text-xs font-medium uppercase tracking-[0.22em] text-muted-foreground">
-            ÓRIGO ASSET MANAGEMENT
-          </p>
         </div>
 
         <div className="mb-6 space-y-1.5">
