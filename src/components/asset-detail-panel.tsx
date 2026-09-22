@@ -164,7 +164,7 @@ export function AssetDetailPanel({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("audit_log")
-        .select("id,action,details,created_at,actor:profiles(full_name,email)")
+        .select("id,action,details,created_at,actor_email")
         .eq("entity", "assets")
         .eq("entity_id", assetId!)
         .order("created_at", { ascending: false })
