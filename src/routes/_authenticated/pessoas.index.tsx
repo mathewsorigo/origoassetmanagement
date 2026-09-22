@@ -1,12 +1,28 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Plus, Search, UserSearch } from "lucide-react";
+import {
+  Plus,
+  Search,
+  UserSearch,
+  Download,
+  FileSpreadsheet,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { EmployeeDetailPanel } from "@/components/employee-detail-panel";
 import { RowActions } from "@/components/row-actions";
+import { BulkActionBar } from "@/components/bulk-action-bar";
+import { Checkbox } from "@/components/ui/checkbox";
+import { exportToCsv } from "@/lib/export";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -90,6 +106,8 @@ function Pessoas() {
   const [form, setForm] = useState({ ...emptyForm });
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [panelMode, setPanelMode] = useState<"view" | "edit">("view");
+  const [checked, setChecked] = useState<Set<string>>(new Set());
+  const [bulkDelete, setBulkDelete] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{
     id: string;
     name: string;
@@ -179,6 +197,52 @@ function Pessoas() {
     ).filter((a) => a.status === "ativo");
   }
 
+  const allChecked = filtered.length > 0 && filtered.every((e) => checked.has(e.id));
+  const selectedEmployees = filtered.filter((e) => checked.has(e.id));
+
+  function toggleRow(id: string) {
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    setChecked(allChecked ? new Set() : new Set(filtered.map((e) => e.id)));
+  }
+
+  function rowsToExport(list: typeof filtered) {
+    return list.map((e) => ({
+      Nome: e.full_name,
+      "E-mail": e.email,
+      CPF: e.cpf,
+      Cargo: e.job_title,
+      Área: e.department,
+      Unidade: e.unit,
+      Gestor: e.manager_name,
+      Situação: employeeStatusLabel[e.status],
+      "Equipamentos em uso": activeAssets(e).length,
+    }));
+  }
+
+  const removeSelected = useMutation({
+    mutationFn: async () => {
+      for (const employee of selectedEmployees) {
+        await deleteEmployeeCascade(employee.id, { email: employee.email });
+      }
+    },
+    onSuccess: () => {
+      toast.success("Colaboradores excluídos.");
+      setChecked(new Set());
+      setBulkDelete(false);
+      setSelectedId(null);
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
   return (
     <div>
       <PageHeader
@@ -186,27 +250,25 @@ function Pessoas() {
         description="Cadastro das pessoas que utilizam os equipamentos da Órigo."
         actions={
           <>
-            <Button
-              variant="outline"
-              onClick={() =>
-                exportToExcel(
-                  "colaboradores",
-                  filtered.map((e) => ({
-                    Nome: e.full_name,
-                    "E-mail": e.email,
-                    CPF: e.cpf,
-                    Cargo: e.job_title,
-                    Área: e.department,
-                    Unidade: e.unit,
-                    Gestor: e.manager_name,
-                    Situação: employeeStatusLabel[e.status],
-                    "Equipamentos em uso": activeAssets(e).length,
-                  })),
-                )
-              }
-            >
-              Exportar Excel
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline">
+                  <Download className="mr-2 size-4" /> Exportar
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onClick={() => exportToExcel("colaboradores", rowsToExport(filtered))}
+                >
+                  <FileSpreadsheet className="mr-2 size-4" /> Planilha XLSX
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => exportToCsv("colaboradores", rowsToExport(filtered))}
+                >
+                  <Download className="mr-2 size-4" /> Arquivo CSV
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             {canEdit && (
               <Button onClick={() => setOpen(true)}>
                 <Plus className="mr-2 size-4" /> Novo colaborador
@@ -215,6 +277,7 @@ function Pessoas() {
           </>
         }
       />
+
 
       <Card className="p-4">
         <div className="relative max-w-md">
