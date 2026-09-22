@@ -16,6 +16,7 @@ import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as AuthenticatedAtivosRouteImport } from './routes/_authenticated/ativos'
 import { Route as AuthenticatedPainelRouteImport } from './routes/_authenticated/painel'
 import { Route as AuthenticatedPessoasRouteImport } from './routes/_authenticated/pessoas'
+import { Route as AuthenticatedVinculosRouteImport } from './routes/_authenticated/vinculos'
 import { Route as AuthenticatedAtivosIdRouteImport } from './routes/_authenticated/ativos.$id'
 import { Route as AuthenticatedPessoasIdRouteImport } from './routes/_authenticated/pessoas.$id'
 
@@ -53,6 +54,11 @@ const AuthenticatedPessoasRoute = AuthenticatedPessoasRouteImport.update({
   path: '/pessoas',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedVinculosRoute = AuthenticatedVinculosRouteImport.update({
+  id: '/vinculos',
+  path: '/vinculos',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedAtivosIdRoute = AuthenticatedAtivosIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -71,6 +77,7 @@ export interface FileRoutesByFullPath {
   '/ativos': typeof AuthenticatedAtivosRouteWithChildren
   '/painel': typeof AuthenticatedPainelRoute
   '/pessoas': typeof AuthenticatedPessoasRouteWithChildren
+  '/vinculos': typeof AuthenticatedVinculosRoute
   '/ativos/$id': typeof AuthenticatedAtivosIdRoute
   '/pessoas/$id': typeof AuthenticatedPessoasIdRoute
 }
@@ -81,6 +88,7 @@ export interface FileRoutesByTo {
   '/ativos': typeof AuthenticatedAtivosRouteWithChildren
   '/painel': typeof AuthenticatedPainelRoute
   '/pessoas': typeof AuthenticatedPessoasRouteWithChildren
+  '/vinculos': typeof AuthenticatedVinculosRoute
   '/ativos/$id': typeof AuthenticatedAtivosIdRoute
   '/pessoas/$id': typeof AuthenticatedPessoasIdRoute
 }
@@ -93,6 +101,7 @@ export interface FileRoutesById {
   '/_authenticated/ativos': typeof AuthenticatedAtivosRouteWithChildren
   '/_authenticated/painel': typeof AuthenticatedPainelRoute
   '/_authenticated/pessoas': typeof AuthenticatedPessoasRouteWithChildren
+  '/_authenticated/vinculos': typeof AuthenticatedVinculosRoute
   '/_authenticated/ativos/$id': typeof AuthenticatedAtivosIdRoute
   '/_authenticated/pessoas/$id': typeof AuthenticatedPessoasIdRoute
 }
@@ -105,6 +114,7 @@ export interface FileRouteTypes {
     | '/ativos'
     | '/painel'
     | '/pessoas'
+    | '/vinculos'
     | '/ativos/$id'
     | '/pessoas/$id'
   fileRoutesByTo: FileRoutesByTo
@@ -115,6 +125,7 @@ export interface FileRouteTypes {
     | '/ativos'
     | '/painel'
     | '/pessoas'
+    | '/vinculos'
     | '/ativos/$id'
     | '/pessoas/$id'
   id:
@@ -126,6 +137,7 @@ export interface FileRouteTypes {
     | '/_authenticated/ativos'
     | '/_authenticated/painel'
     | '/_authenticated/pessoas'
+    | '/_authenticated/vinculos'
     | '/_authenticated/ativos/$id'
     | '/_authenticated/pessoas/$id'
   fileRoutesById: FileRoutesById
@@ -188,6 +200,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPessoasRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/vinculos': {
+      id: '/_authenticated/vinculos'
+      path: '/vinculos'
+      fullPath: '/vinculos'
+      preLoaderRoute: typeof AuthenticatedVinculosRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/ativos/$id': {
       id: '/_authenticated/ativos/$id'
       path: '/$id'
@@ -231,12 +250,14 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAtivosRoute: typeof AuthenticatedAtivosRouteWithChildren
   AuthenticatedPainelRoute: typeof AuthenticatedPainelRoute
   AuthenticatedPessoasRoute: typeof AuthenticatedPessoasRouteWithChildren
+  AuthenticatedVinculosRoute: typeof AuthenticatedVinculosRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAtivosRoute: AuthenticatedAtivosRouteWithChildren,
   AuthenticatedPainelRoute: AuthenticatedPainelRoute,
   AuthenticatedPessoasRoute: AuthenticatedPessoasRouteWithChildren,
+  AuthenticatedVinculosRoute: AuthenticatedVinculosRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
