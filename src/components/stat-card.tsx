@@ -61,9 +61,13 @@ export function StatCard({
           <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             {label}
           </p>
-          <p className="mt-2 font-display text-3xl font-semibold tabular-nums">
-            {loading ? <Skeleton className="h-8 w-14" /> : <AnimatedNumber value={value} />}
-          </p>
+          {loading ? (
+            <Skeleton className="mt-2 h-8 w-14" />
+          ) : (
+            <p className="mt-2 font-display text-3xl font-semibold tabular-nums">
+              <AnimatedNumber value={value} />
+            </p>
+          )}
           {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
         </div>
         <div
