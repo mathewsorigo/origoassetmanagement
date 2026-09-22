@@ -26,6 +26,7 @@ import { Route as AuthenticatedTermosRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedVinculosRouteImport } from './routes/_authenticated/vinculos'
 import { Route as AuthenticatedAtivosIndexRouteImport } from './routes/_authenticated/ativos.index'
 import { Route as AuthenticatedAtivosIdRouteImport } from './routes/_authenticated/ativos.$id'
+import { Route as AuthenticatedInventarioSessionIdRouteImport } from './routes/_authenticated/inventario.$sessionId'
 import { Route as AuthenticatedPessoasIndexRouteImport } from './routes/_authenticated/pessoas.index'
 import { Route as AuthenticatedPessoasIdRouteImport } from './routes/_authenticated/pessoas.$id'
 import { Route as ApiPublicHermesAssinaturaRouteImport } from './routes/api/public/hermes.assinatura'
@@ -118,6 +119,12 @@ const AuthenticatedAtivosIdRoute = AuthenticatedAtivosIdRouteImport.update({
   path: '/ativos/$id',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedInventarioSessionIdRoute =
+  AuthenticatedInventarioSessionIdRouteImport.update({
+    id: '/$sessionId',
+    path: '/$sessionId',
+    getParentRoute: () => AuthenticatedInventarioRoute,
+  } as any)
 const AuthenticatedPessoasIndexRoute =
   AuthenticatedPessoasIndexRouteImport.update({
     id: '/pessoas/',
@@ -147,11 +154,12 @@ export interface FileRoutesByFullPath {
   '/contratos': typeof AuthenticatedContratosRoute
   '/importacao': typeof AuthenticatedImportacaoRoute
   '/integracoes': typeof AuthenticatedIntegracoesRoute
-  '/inventario': typeof AuthenticatedInventarioRoute
+  '/inventario': typeof AuthenticatedInventarioRouteWithChildren
   '/painel': typeof AuthenticatedPainelRoute
   '/termos': typeof AuthenticatedTermosRoute
   '/vinculos': typeof AuthenticatedVinculosRoute
   '/ativos/$id': typeof AuthenticatedAtivosIdRoute
+  '/inventario/$sessionId': typeof AuthenticatedInventarioSessionIdRoute
   '/pessoas/$id': typeof AuthenticatedPessoasIdRoute
   '/ativos/': typeof AuthenticatedAtivosIndexRoute
   '/pessoas/': typeof AuthenticatedPessoasIndexRoute
@@ -168,11 +176,12 @@ export interface FileRoutesByTo {
   '/contratos': typeof AuthenticatedContratosRoute
   '/importacao': typeof AuthenticatedImportacaoRoute
   '/integracoes': typeof AuthenticatedIntegracoesRoute
-  '/inventario': typeof AuthenticatedInventarioRoute
+  '/inventario': typeof AuthenticatedInventarioRouteWithChildren
   '/painel': typeof AuthenticatedPainelRoute
   '/termos': typeof AuthenticatedTermosRoute
   '/vinculos': typeof AuthenticatedVinculosRoute
   '/ativos/$id': typeof AuthenticatedAtivosIdRoute
+  '/inventario/$sessionId': typeof AuthenticatedInventarioSessionIdRoute
   '/pessoas/$id': typeof AuthenticatedPessoasIdRoute
   '/ativos': typeof AuthenticatedAtivosIndexRoute
   '/pessoas': typeof AuthenticatedPessoasIndexRoute
@@ -191,11 +200,12 @@ export interface FileRoutesById {
   '/_authenticated/contratos': typeof AuthenticatedContratosRoute
   '/_authenticated/importacao': typeof AuthenticatedImportacaoRoute
   '/_authenticated/integracoes': typeof AuthenticatedIntegracoesRoute
-  '/_authenticated/inventario': typeof AuthenticatedInventarioRoute
+  '/_authenticated/inventario': typeof AuthenticatedInventarioRouteWithChildren
   '/_authenticated/painel': typeof AuthenticatedPainelRoute
   '/_authenticated/termos': typeof AuthenticatedTermosRoute
   '/_authenticated/vinculos': typeof AuthenticatedVinculosRoute
   '/_authenticated/ativos/$id': typeof AuthenticatedAtivosIdRoute
+  '/_authenticated/inventario/$sessionId': typeof AuthenticatedInventarioSessionIdRoute
   '/_authenticated/pessoas/$id': typeof AuthenticatedPessoasIdRoute
   '/_authenticated/ativos/': typeof AuthenticatedAtivosIndexRoute
   '/_authenticated/pessoas/': typeof AuthenticatedPessoasIndexRoute
@@ -219,6 +229,7 @@ export interface FileRouteTypes {
     | '/termos'
     | '/vinculos'
     | '/ativos/$id'
+    | '/inventario/$sessionId'
     | '/pessoas/$id'
     | '/ativos/'
     | '/pessoas/'
@@ -240,6 +251,7 @@ export interface FileRouteTypes {
     | '/termos'
     | '/vinculos'
     | '/ativos/$id'
+    | '/inventario/$sessionId'
     | '/pessoas/$id'
     | '/ativos'
     | '/pessoas'
@@ -262,6 +274,7 @@ export interface FileRouteTypes {
     | '/_authenticated/termos'
     | '/_authenticated/vinculos'
     | '/_authenticated/ativos/$id'
+    | '/_authenticated/inventario/$sessionId'
     | '/_authenticated/pessoas/$id'
     | '/_authenticated/ativos/'
     | '/_authenticated/pessoas/'
@@ -398,6 +411,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAtivosIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/inventario/$sessionId': {
+      id: '/_authenticated/inventario/$sessionId'
+      path: '/$sessionId'
+      fullPath: '/inventario/$sessionId'
+      preLoaderRoute: typeof AuthenticatedInventarioSessionIdRouteImport
+      parentRoute: typeof AuthenticatedInventarioRoute
+    }
     '/_authenticated/pessoas/': {
       id: '/_authenticated/pessoas/'
       path: '/pessoas'
@@ -422,6 +442,21 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AuthenticatedInventarioRouteChildren {
+  AuthenticatedInventarioSessionIdRoute: typeof AuthenticatedInventarioSessionIdRoute
+}
+
+const AuthenticatedInventarioRouteChildren: AuthenticatedInventarioRouteChildren =
+  {
+    AuthenticatedInventarioSessionIdRoute:
+      AuthenticatedInventarioSessionIdRoute,
+  }
+
+const AuthenticatedInventarioRouteWithChildren =
+  AuthenticatedInventarioRoute._addFileChildren(
+    AuthenticatedInventarioRouteChildren,
+  )
+
 interface AuthenticatedRouteChildren {
   AuthenticatedAdministracaoRoute: typeof AuthenticatedAdministracaoRoute
   AuthenticatedAuditoriaRoute: typeof AuthenticatedAuditoriaRoute
@@ -429,7 +464,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedContratosRoute: typeof AuthenticatedContratosRoute
   AuthenticatedImportacaoRoute: typeof AuthenticatedImportacaoRoute
   AuthenticatedIntegracoesRoute: typeof AuthenticatedIntegracoesRoute
-  AuthenticatedInventarioRoute: typeof AuthenticatedInventarioRoute
+  AuthenticatedInventarioRoute: typeof AuthenticatedInventarioRouteWithChildren
   AuthenticatedPainelRoute: typeof AuthenticatedPainelRoute
   AuthenticatedTermosRoute: typeof AuthenticatedTermosRoute
   AuthenticatedVinculosRoute: typeof AuthenticatedVinculosRoute
@@ -446,7 +481,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedContratosRoute: AuthenticatedContratosRoute,
   AuthenticatedImportacaoRoute: AuthenticatedImportacaoRoute,
   AuthenticatedIntegracoesRoute: AuthenticatedIntegracoesRoute,
-  AuthenticatedInventarioRoute: AuthenticatedInventarioRoute,
+  AuthenticatedInventarioRoute: AuthenticatedInventarioRouteWithChildren,
   AuthenticatedPainelRoute: AuthenticatedPainelRoute,
   AuthenticatedTermosRoute: AuthenticatedTermosRoute,
   AuthenticatedVinculosRoute: AuthenticatedVinculosRoute,

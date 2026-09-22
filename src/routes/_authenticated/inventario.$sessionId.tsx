@@ -115,7 +115,11 @@ function Conferencia() {
           .order("id")
           .range(from, from + CHUNK - 1);
         if (scope["location"]) query = query.eq("location", scope["location"]);
-        if (scope["asset_type"]) query = query.eq("asset_type", scope["asset_type"]);
+        if (scope["asset_type"])
+          query = query.eq(
+            "asset_type",
+            scope["asset_type"] as "notebook" | "celular" | "monitor" | "acessorio" | "outro",
+          );
         const { data, error } = await query;
         if (error) throw error;
         const rows = (data ?? []) as AssetRow[];
