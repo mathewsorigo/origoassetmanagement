@@ -19,7 +19,7 @@ export function AssetIcon({
   size = "sm",
 }: {
   type: string;
-  model?: string | null;
+  model?: string | null | undefined;
   className?: string;
   size?: "sm" | "lg";
 }) {
