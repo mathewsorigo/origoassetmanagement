@@ -42,14 +42,18 @@ export function StatCard({
   tone?: "primary" | "success" | "info" | "warning";
 }) {
   const tones = {
-    primary: "from-primary/12 text-primary",
-    success: "from-success/15 text-success",
-    info: "from-info/12 text-info",
-    warning: "from-warning/25 text-warning-foreground",
+    primary: "from-primary/12 text-primary bg-primary",
+    success: "from-success/15 text-success bg-success",
+    info: "from-info/12 text-info bg-info",
+    warning: "from-warning/25 text-warning-foreground bg-warning",
   } as const;
 
   return (
     <Card className="group relative overflow-hidden border-border/70 shadow-[var(--shadow-card)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[var(--shadow-elevated)]">
+      <span
+        className={cn("absolute inset-y-0 left-0 w-1.5", tones[tone].split(" ")[2])}
+        aria-hidden
+      />
       <div
         className={cn(
           "pointer-events-none absolute inset-0 bg-gradient-to-br to-transparent opacity-70",

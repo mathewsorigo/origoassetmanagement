@@ -15,6 +15,20 @@
       "when": 1790097744251,
       "tag": "0001_storage_policies_asset_documents",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790100751727,
+      "tag": "0002_create_tags_and_tighten_read_policies",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790101224558,
+      "tag": "0003_tighten_tag_read_policies",
+      "breakpoints": true
     }
   ]
 }

@@ -1,12 +1,28 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Plus, Search, UserSearch } from "lucide-react";
+import {
+  Plus,
+  Search,
+  UserSearch,
+  Download,
+  FileSpreadsheet,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { EmployeeDetailPanel } from "@/components/employee-detail-panel";
 import { RowActions } from "@/components/row-actions";
+import { BulkActionBar } from "@/components/bulk-action-bar";
+import { Checkbox } from "@/components/ui/checkbox";
+import { exportToCsv } from "@/lib/export";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -90,6 +106,8 @@ function Pessoas() {
   const [form, setForm] = useState({ ...emptyForm });
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [panelMode, setPanelMode] = useState<"view" | "edit">("view");
+  const [checked, setChecked] = useState<Set<string>>(new Set());
+  const [bulkDelete, setBulkDelete] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{
     id: string;
     name: string;
@@ -179,6 +197,52 @@ function Pessoas() {
     ).filter((a) => a.status === "ativo");
   }
 
+  const allChecked = filtered.length > 0 && filtered.every((e) => checked.has(e.id));
+  const selectedEmployees = filtered.filter((e) => checked.has(e.id));
+
+  function toggleRow(id: string) {
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    setChecked(allChecked ? new Set() : new Set(filtered.map((e) => e.id)));
+  }
+
+  function rowsToExport(list: typeof filtered) {
+    return list.map((e) => ({
+      Nome: e.full_name,
+      "E-mail": e.email,
+      CPF: e.cpf,
+      Cargo: e.job_title,
+      Área: e.department,
+      Unidade: e.unit,
+      Gestor: e.manager_name,
+      Situação: employeeStatusLabel[e.status],
+      "Equipamentos em uso": activeAssets(e).length,
+    }));
+  }
+
+  const removeSelected = useMutation({
+    mutationFn: async () => {
+      for (const employee of selectedEmployees) {
+        await deleteEmployeeCascade(employee.id, { email: employee.email });
+      }
+    },
+    onSuccess: () => {
+      toast.success("Colaboradores excluídos.");
+      setChecked(new Set());
+      setBulkDelete(false);
+      setSelectedId(null);
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
   return (
     <div>
       <PageHeader
@@ -186,27 +250,25 @@ function Pessoas() {
         description="Cadastro das pessoas que utilizam os equipamentos da Órigo."
         actions={
           <>
-            <Button
-              variant="outline"
-              onClick={() =>
-                exportToExcel(
-                  "colaboradores",
-                  filtered.map((e) => ({
-                    Nome: e.full_name,
-                    "E-mail": e.email,
-                    CPF: e.cpf,
-                    Cargo: e.job_title,
-                    Área: e.department,
-                    Unidade: e.unit,
-                    Gestor: e.manager_name,
-                    Situação: employeeStatusLabel[e.status],
-                    "Equipamentos em uso": activeAssets(e).length,
-                  })),
-                )
-              }
-            >
-              Exportar Excel
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline">
+                  <Download className="mr-2 size-4" /> Exportar
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onClick={() => exportToExcel("colaboradores", rowsToExport(filtered))}
+                >
+                  <FileSpreadsheet className="mr-2 size-4" /> Planilha XLSX
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => exportToCsv("colaboradores", rowsToExport(filtered))}
+                >
+                  <Download className="mr-2 size-4" /> Arquivo CSV
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             {canEdit && (
               <Button onClick={() => setOpen(true)}>
                 <Plus className="mr-2 size-4" /> Novo colaborador
@@ -215,6 +277,7 @@ function Pessoas() {
           </>
         }
       />
+
 
       <Card className="p-4">
         <div className="relative max-w-md">
@@ -235,6 +298,13 @@ function Pessoas() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={allChecked}
+                    onCheckedChange={toggleAll}
+                    aria-label="Selecionar todos"
+                  />
+                </TableHead>
                 <TableHead>Colaborador</TableHead>
                 <TableHead>Área / Cargo</TableHead>
                 <TableHead>Unidade</TableHead>
@@ -247,7 +317,7 @@ function Pessoas() {
               {isLoading &&
                 Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={`s-${i}`}>
-                    {Array.from({ length: 6 }).map((__, j) => (
+                    {Array.from({ length: 7 }).map((__, j) => (
                       <TableCell key={j}>
                         <Skeleton className="h-4 w-full max-w-40" />
                       </TableCell>
@@ -256,7 +326,7 @@ function Pessoas() {
                 ))}
               {!isLoading && filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-12">
+                  <TableCell colSpan={7} className="py-12">
                     <div className="flex flex-col items-center gap-3 text-center">
                       <span className="flex size-14 items-center justify-center rounded-2xl border border-dashed border-primary/30 bg-primary/5 text-primary">
                         <UserSearch className="size-6" />
@@ -285,6 +355,13 @@ function Pessoas() {
                       selected && "bg-primary/[0.07] hover:bg-primary/10",
                     )}
                   >
+                    <TableCell onClick={(ev) => ev.stopPropagation()}>
+                      <Checkbox
+                        checked={checked.has(e.id)}
+                        onCheckedChange={() => toggleRow(e.id)}
+                        aria-label="Selecionar colaborador"
+                      />
+                    </TableCell>
                     <TableCell>
                       <p
                         className={cn(
@@ -315,7 +392,7 @@ function Pessoas() {
                     <TableCell>
                       <StatusBadge value={e.status} />
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right" onClick={(ev) => ev.stopPropagation()}>
                       {canEdit && (
                         <RowActions
                           onEdit={() => {
@@ -335,6 +412,54 @@ function Pessoas() {
           </Table>
         </div>
       </Card>
+
+      <BulkActionBar
+        count={checked.size}
+        total={filtered.length}
+        noun="colaboradores"
+        onClear={() => setChecked(new Set())}
+      >
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() =>
+            exportToExcel("colaboradores-selecionados", rowsToExport(selectedEmployees))
+          }
+        >
+          <FileSpreadsheet className="mr-1.5 size-4" /> Exportar
+        </Button>
+        {canEdit && (
+          <Button size="sm" variant="destructive" onClick={() => setBulkDelete(true)}>
+            <Trash2 className="mr-1.5 size-4" /> Excluir
+          </Button>
+        )}
+      </BulkActionBar>
+
+      <AlertDialog open={bulkDelete} onOpenChange={setBulkDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-display">
+              Excluir {checked.size} colaboradores?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Os vínculos, termos e documentos dessas pessoas também serão apagados. Quem tem
+              equipamento em uso precisa da devolução registrada antes.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={removeSelected.isPending}
+              onClick={(ev) => {
+                ev.preventDefault();
+                removeSelected.mutate();
+              }}
+            >
+              Excluir definitivamente
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(v) => !v && setDeleteTarget(null)}>
         <AlertDialogContent>

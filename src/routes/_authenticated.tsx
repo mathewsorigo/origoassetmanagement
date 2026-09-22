@@ -7,7 +7,7 @@ import {
   useRouter,
   useRouterState,
 } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
@@ -22,8 +22,21 @@ import {
   LogOut,
   Menu,
   Loader2,
+  Plus,
+  Tags,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { GlobalSearch } from "@/components/global-search";
+import { TagPicker } from "@/components/tag-picker";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useProfile, useRoles, useSession, isManager, isOperator, isAdmin } from "@/hooks/useAuth";
@@ -37,12 +50,12 @@ export const Route = createFileRoute("/_authenticated")({
 const navItems = [
   { to: "/painel", label: "Painel", icon: LayoutDashboard, need: "any" },
   { to: "/ativos", label: "Ativos", icon: Laptop, need: "any" },
-  { to: "/pessoas", label: "Colaboradores", icon: Users, need: "manager" },
+  { to: "/pessoas", label: "Pessoas", icon: Users, need: "manager" },
   { to: "/vinculos", label: "Vínculos", icon: Link2, need: "any" },
   { to: "/termos", label: "Termos", icon: FileSignature, need: "any" },
-  { to: "/importacao", label: "Importação", icon: Upload, need: "operator" },
-  { to: "/integracoes", label: "Integrações", icon: Plug, need: "manager" },
-  { to: "/administracao", label: "Administração", icon: Settings, need: "admin" },
+  { to: "/importacao", label: "Importar", icon: Upload, need: "operator" },
+  { to: "/integracoes", label: "Integrar", icon: Plug, need: "manager" },
+  { to: "/administracao", label: "Admin", icon: Settings, need: "admin" },
   { to: "/auditoria", label: "Auditoria", icon: ScrollText, need: "manager" },
 ] as const;
 
@@ -50,9 +63,11 @@ function AuthenticatedLayout() {
   const { session, user, loading } = useSession();
   const navigate = useNavigate();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { data: roles } = useRoles(user);
   const { data: profile } = useProfile(user);
   const [open, setOpen] = useState(false);
+  const [tagsOpen, setTagsOpen] = useState(false);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   const { data: pendingCount = 0 } = useQuery({
@@ -73,6 +88,8 @@ function AuthenticatedLayout() {
   }, [loading, session, navigate]);
 
   async function signOut() {
+    await queryClient.cancelQueries();
+    queryClient.clear();
     await supabase.auth.signOut();
     router.invalidate();
     navigate({ to: "/auth", replace: true });
@@ -93,61 +110,58 @@ function AuthenticatedLayout() {
     return isAdmin(roles);
   });
 
+  const canEdit = isOperator(roles);
+  const initials = (profile?.full_name ?? user?.email ?? "U")
+    .split(" ")
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase() ?? "")
+    .join("");
+
   return (
     <div className="min-h-screen bg-background lg:flex">
+      {/* Trilha de ícones */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 w-64 shrink-0 bg-sidebar text-sidebar-foreground shadow-[var(--shadow-elevated)] transition-transform duration-300 lg:static lg:translate-x-0 lg:shadow-none",
+          "fixed inset-y-0 left-0 z-40 flex w-[92px] shrink-0 flex-col bg-sidebar text-sidebar-foreground shadow-[var(--shadow-elevated)] transition-transform duration-300 lg:static lg:translate-x-0 lg:shadow-none",
           open ? "translate-x-0" : "-translate-x-full",
         )}
       >
-        <div className="flex h-16 items-center gap-3 border-b border-sidebar-border px-5">
-          <OrigoSimbolo />
-          <div className="leading-tight">
-            <p className="font-display text-sm font-semibold">Órigo Asset Management</p>
-            <p className="text-[11px] text-sidebar-foreground/70">Gestão de equipamentos</p>
-          </div>
+        <div className="flex h-16 items-center justify-center border-b border-sidebar-border">
+          <Link to="/painel" onClick={() => setOpen(false)} aria-label="Painel">
+            <OrigoSimbolo />
+          </Link>
+          <button
+            aria-label="Fechar menu"
+            className="absolute right-2 top-5 text-sidebar-foreground/70 lg:hidden"
+            onClick={() => setOpen(false)}
+          >
+            <X className="size-4" />
+          </button>
         </div>
 
-        <nav className="space-y-1 px-3 py-4">
+        <nav className="flex-1 space-y-1 overflow-y-auto px-2 py-3">
           {visible.map((item) => (
             <Link
               key={item.to}
               to={item.to}
               onClick={() => setOpen(false)}
               activeProps={{
-                className:
-                  "bg-sidebar-accent text-sidebar-accent-foreground before:opacity-100 font-medium",
+                className: "bg-sidebar-accent text-sidebar-accent-foreground before:opacity-100",
               }}
-              className="group relative flex items-center gap-3 overflow-hidden rounded-lg px-3 py-2 text-sm text-sidebar-foreground/85 transition-all duration-200 before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-full before:bg-sidebar-primary before:opacity-0 before:transition-opacity hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground"
+              className="group relative flex flex-col items-center gap-1 overflow-hidden rounded-xl px-1 py-2.5 text-[10.5px] font-medium text-sidebar-foreground/80 transition-all duration-200 before:absolute before:inset-y-2 before:left-0 before:w-0.5 before:rounded-full before:bg-sidebar-primary before:opacity-0 before:transition-opacity hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground"
             >
-              <item.icon className="size-4 transition-transform duration-200 group-hover:scale-110" />
+              <span className="relative">
+                <item.icon className="size-[22px] transition-transform duration-200 group-hover:scale-110" />
+                {item.to === "/termos" && pendingCount > 0 && (
+                  <span className="absolute -right-2 -top-1.5 min-w-4 rounded-full bg-sidebar-primary px-1 text-center text-[9px] font-bold leading-4 text-sidebar-primary-foreground">
+                    {pendingCount}
+                  </span>
+                )}
+              </span>
               {item.label}
-              {item.to === "/termos" && pendingCount > 0 && (
-                <span className="ml-auto rounded-full bg-sidebar-primary px-1.5 py-0.5 text-[10px] font-semibold text-sidebar-primary-foreground">
-                  {pendingCount}
-                </span>
-              )}
             </Link>
           ))}
         </nav>
-
-        <div className="absolute inset-x-0 bottom-0 border-t border-sidebar-border p-4">
-          <p className="truncate text-sm font-medium">
-            {profile?.full_name ?? user?.email ?? "Usuário"}
-          </p>
-          <p className="truncate text-[11px] text-sidebar-foreground/70">
-            {roles?.map((r) => roleLabel[r]).join(", ") || "Sem papel definido"}
-          </p>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="mt-3 w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent"
-            onClick={signOut}
-          >
-            <LogOut className="mr-2 size-4" /> Sair
-          </Button>
-        </div>
       </aside>
 
       {open && (
@@ -159,16 +173,98 @@ function AuthenticatedLayout() {
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-16 items-center gap-3 border-b bg-card px-4 lg:hidden">
-          <Button variant="ghost" size="icon" onClick={() => setOpen(true)}>
+        {/* Barra superior */}
+        <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b bg-card/90 px-4 backdrop-blur sm:px-6">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="lg:hidden"
+            aria-label="Abrir menu"
+            onClick={() => setOpen(true)}
+          >
             <Menu className="size-5" />
           </Button>
-          <span className="font-display text-sm font-semibold">Órigo Ativos</span>
+
+          <div className="min-w-0 max-w-xl flex-1">
+            <GlobalSearch />
+          </div>
+
+          <div className="ml-auto flex items-center gap-2">
+            {canEdit && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm">
+                    <Plus className="mr-1.5 size-4" /> Novo
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>Cadastrar</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => navigate({ to: "/ativos" })}>
+                    <Laptop className="mr-2 size-4" /> Equipamento
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate({ to: "/pessoas" })}>
+                    <Users className="mr-2 size-4" /> Colaborador
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate({ to: "/vinculos" })}>
+                    <Link2 className="mr-2 size-4" /> Vínculo
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+
+            <Button
+              variant="outline"
+              size="icon"
+              aria-label="Etiquetas"
+              onClick={() => setTagsOpen(true)}
+            >
+              <Tags className="size-4" />
+            </Button>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="flex size-9 items-center justify-center rounded-full bg-primary/12 text-xs font-semibold text-primary ring-1 ring-primary/25 transition-transform hover:scale-105"
+                  aria-label="Minha conta"
+                >
+                  {initials}
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel className="space-y-0.5">
+                  <p className="truncate text-sm">{profile?.full_name ?? user?.email}</p>
+                  <p className="truncate text-[11px] font-normal text-muted-foreground">
+                    {roles?.map((r) => roleLabel[r]).join(", ") || "Sem papel definido"}
+                  </p>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => navigate({ to: "/painel" })}>
+                  <LayoutDashboard className="mr-2 size-4" /> Painel
+                </DropdownMenuItem>
+                {isAdmin(roles) && (
+                  <DropdownMenuItem onClick={() => navigate({ to: "/administracao" })}>
+                    <Settings className="mr-2 size-4" /> Administração
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={signOut}>
+                  <LogOut className="mr-2 size-4" /> Sair
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </header>
-        <main key={pathname} className="min-w-0 flex-1 animate-in fade-in-50 slide-in-from-bottom-2 p-4 duration-300 sm:p-6 lg:p-8">
+
+        <main
+          key={pathname}
+          className="min-w-0 flex-1 animate-in fade-in-50 slide-in-from-bottom-2 p-4 duration-300 sm:p-6 lg:p-8"
+        >
           <Outlet />
         </main>
       </div>
+
+      <TagPicker assetIds={[]} open={tagsOpen} onOpenChange={setTagsOpen} />
     </div>
   );
 }
