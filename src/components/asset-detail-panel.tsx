@@ -429,7 +429,12 @@ export function AssetDetailPanel({
               {/* Coluna lateral */}
               <aside className="overflow-y-auto border-b bg-muted/30 px-5 py-6 md:border-b-0 md:border-r">
                 <div className="flex flex-col items-center text-center">
-                  <AssetIcon type={asset?.asset_type ?? "outro"} size="lg" />
+                  <AssetIcon
+                    type={asset?.asset_type ?? "outro"}
+                    model={asset?.model}
+                    size="lg"
+                    className={modelImage(asset?.model) ? "size-32 rounded-2xl" : undefined}
+                  />
                   {isLoading && !asset ? (
                     <Skeleton className="mt-4 h-6 w-40" />
                   ) : (
