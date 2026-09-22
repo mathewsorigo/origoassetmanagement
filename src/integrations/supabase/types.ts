@@ -44,6 +44,39 @@ export type Database = {
         }
         Relationships: []
       }
+      access_denied_attempts: {
+        Row: {
+          attempts: number
+          email: string
+          first_attempt_at: string
+          full_name: string | null
+          id: string
+          last_attempt_at: string
+          reason: string
+          resolved_at: string | null
+        }
+        Insert: {
+          attempts?: number
+          email: string
+          first_attempt_at?: string
+          full_name?: string | null
+          id?: string
+          last_attempt_at?: string
+          reason?: string
+          resolved_at?: string | null
+        }
+        Update: {
+          attempts?: number
+          email?: string
+          first_attempt_at?: string
+          full_name?: string | null
+          id?: string
+          last_attempt_at?: string
+          reason?: string
+          resolved_at?: string | null
+        }
+        Relationships: []
+      }
       agreement_reminders: {
         Row: {
           agreement_id: string
