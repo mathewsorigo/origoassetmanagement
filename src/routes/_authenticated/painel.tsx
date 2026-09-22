@@ -185,26 +185,9 @@ function Painel() {
                 Sem equipamentos cadastrados.
               </p>
             ) : (
-              <div className="h-52">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={statusData}
-                      dataKey="value"
-                      nameKey="name"
-                      innerRadius={52}
-                      outerRadius={80}
-                      paddingAngle={3}
-                      stroke="none"
-                    >
-                      {statusData.map((d) => (
-                        <Cell key={d.key} fill={statusColors[d.key] ?? "var(--chart-1)"} />
-                      ))}
-                    </Pie>
-                    <Tooltip content={<ChartTooltip />} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
+              <Suspense fallback={<ChartFallback />}>
+                <StatusDonut data={statusData} colors={statusColors} />
+              </Suspense>
             )}
             <div className="mt-3 flex flex-wrap gap-3">
               {statusData.map((d) => (
