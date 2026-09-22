@@ -5,9 +5,7 @@ import { toast } from "sonner";
 import { Loader2, ShieldCheck, FileSignature, QrCode, Monitor } from "lucide-react";
 import { OrigoLogo } from "@/components/brand-logo";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { supabase } from "@/integrations/supabase/client";
+
 import { lovable } from "@/integrations/lovable/index";
 import { useSession } from "@/hooks/useAuth";
 
