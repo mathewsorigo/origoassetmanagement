@@ -147,7 +147,8 @@ function Ativos() {
         .select(
           "*, assignments(id,status,employee:employees(id,full_name))",
         )
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .range(0, 9999);
       if (error) throw error;
       return data;
     },
