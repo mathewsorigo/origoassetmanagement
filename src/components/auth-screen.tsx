@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { takePendingQr } from "@/lib/pending-qr";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { Loader2, ShieldCheck, FileSignature, QrCode } from "lucide-react";
+import { Loader2, ShieldCheck, FileSignature, QrCode, Monitor } from "lucide-react";
 import { OrigoLogo } from "@/components/brand-logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
