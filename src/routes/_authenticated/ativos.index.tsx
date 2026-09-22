@@ -310,29 +310,26 @@ function Ativos() {
         description="Notebooks e celulares alugados pela Simpress e demais fornecedores."
         actions={
           <>
-            <Button
-              variant="outline"
-              onClick={() =>
-                exportToExcel(
-                  "ativos",
-                  filtered.map((a) => ({
-                    Tipo: assetTypeLabel[a.asset_type],
-                    Marca: a.brand,
-                    Modelo: a.model,
-                    Série: a.serial_number,
-                    Patrimônio: a.patrimony,
-                    IMEI: a.imei,
-                    Fornecedor: a.supplier,
-                    Situação: assetStatusLabel[a.status],
-                    Usuário: holderOf(a)?.full_name ?? "",
-                    "Custo mensal": a.monthly_cost,
-                    "Fim da locação": a.lease_end,
-                  })),
-                )
-              }
-            >
-              Exportar Excel
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline">
+                  <Download className="mr-2 size-4" /> Exportar
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => exportToExcel("ativos", rowsToExport(filtered))}>
+                  <FileSpreadsheet className="mr-2 size-4" /> Planilha XLSX
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportToCsv("ativos", rowsToExport(filtered))}>
+                  <Download className="mr-2 size-4" /> Arquivo CSV
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => generateQr(selectedAssets.length ? selectedAssets : filtered)}
+                >
+                  <QrCode className="mr-2 size-4" /> Gerar QR Code
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             {canEdit && (
               <Button onClick={() => setOpen(true)}>
                 <Plus className="mr-2 size-4" /> Novo ativo
@@ -341,6 +338,7 @@ function Ativos() {
           </>
         }
       />
+
 
       <Card className="p-4">
         <div className="flex flex-wrap gap-3">
@@ -375,6 +373,19 @@ function Ativos() {
               {Object.entries(assetStatusLabel).map(([v, l]) => (
                 <SelectItem key={v} value={v}>
                   {l}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={tagFilter} onValueChange={setTagFilter}>
+            <SelectTrigger className="w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todas">Todas as etiquetas</SelectItem>
+              {(tagList ?? []).map((tag) => (
+                <SelectItem key={tag.id} value={tag.id}>
+                  {tag.name}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -415,6 +426,13 @@ function Ativos() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={allChecked}
+                    onCheckedChange={togglePage}
+                    aria-label="Selecionar todos"
+                  />
+                </TableHead>
                 <TableHead>Equipamento</TableHead>
                 <TableHead>Usuário atual</TableHead>
                 <TableHead>Fornecedor</TableHead>
@@ -427,7 +445,7 @@ function Ativos() {
               {isLoading &&
                 Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={`s-${i}`}>
-                    {Array.from({ length: 6 }).map((__, j) => (
+                    {Array.from({ length: 7 }).map((__, j) => (
                       <TableCell key={j}>
                         <Skeleton className="h-4 w-full max-w-40" />
                       </TableCell>
@@ -436,7 +454,7 @@ function Ativos() {
                 ))}
               {!isLoading && filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-12">
+                  <TableCell colSpan={7} className="py-12">
                     <div className="flex flex-col items-center gap-3 text-center">
                       <span className="flex size-14 items-center justify-center rounded-2xl border border-dashed border-primary/30 bg-primary/5 text-primary">
                         <PackageSearch className="size-6" />
@@ -453,9 +471,10 @@ function Ativos() {
                   </TableCell>
                 </TableRow>
               )}
-              {filtered.map((a, index) => {
+              {pageRows.map((a, index) => {
                 const holder = holderOf(a);
                 const selected = selectedId === a.id;
+                const tags = assetTagMap?.get(a.id) ?? [];
                 return (
                   <TableRow
                     key={a.id}
@@ -466,6 +485,13 @@ function Ativos() {
                       selected && "bg-primary/[0.07] hover:bg-primary/10",
                     )}
                   >
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        checked={checked.has(a.id)}
+                        onCheckedChange={() => toggleRow(a.id)}
+                        aria-label="Selecionar equipamento"
+                      />
+                    </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <AssetIcon type={a.asset_type} />
@@ -482,6 +508,13 @@ function Ativos() {
                             {assetTypeLabel[a.asset_type]} · Série {a.serial_number}
                             {a.patrimony ? ` · Pat. ${a.patrimony}` : ""}
                           </p>
+                          {tags.length > 0 && (
+                            <div className="mt-1.5 flex flex-wrap gap-1">
+                              {tags.map((tag) => (
+                                <TagBadge key={tag.id} tag={tag} />
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </TableCell>
@@ -502,7 +535,7 @@ function Ativos() {
                         <SourceBadge intuneDeviceId={a.intune_device_id} />
                       </div>
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                       {canEdit && (
                         <RowActions
                           onEdit={() => {
@@ -517,6 +550,18 @@ function Ativos() {
                               serial: a.serial_number,
                             })
                           }
+                          extra={[
+                            {
+                              label: "Etiquetas",
+                              icon: Tags,
+                              onSelect: () => setTagTarget([a.id]),
+                            },
+                            {
+                              label: "Gerar QR Code",
+                              icon: QrCode,
+                              onSelect: () => generateQr([a]),
+                            },
+                          ]}
                         />
                       )}
                     </TableCell>
@@ -526,7 +571,94 @@ function Ativos() {
             </TableBody>
           </Table>
         </div>
+
+        {pageCount > 1 && (
+          <div className="mt-4 flex items-center justify-between gap-3 border-t pt-3">
+            <p className="text-xs text-muted-foreground">
+              Página {currentPage} de {pageCount}
+            </p>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage <= 1}
+                onClick={() => setPage(currentPage - 1)}
+              >
+                <ChevronLeft className="mr-1 size-4" /> Anterior
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage >= pageCount}
+                onClick={() => setPage(currentPage + 1)}
+              >
+                Próxima <ChevronRight className="ml-1 size-4" />
+              </Button>
+            </div>
+          </div>
+        )}
       </Card>
+
+      <BulkActionBar
+        count={checked.size}
+        total={filtered.length}
+        noun="equipamentos"
+        onClear={() => setChecked(new Set())}
+      >
+        {canEdit && (
+          <Button size="sm" variant="secondary" onClick={() => setTagTarget([...checked])}>
+            <Tags className="mr-1.5 size-4" /> Etiquetas
+          </Button>
+        )}
+        <Button size="sm" variant="outline" onClick={() => generateQr(selectedAssets)}>
+          <QrCode className="mr-1.5 size-4" /> QR Code
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => exportToExcel("ativos-selecionados", rowsToExport(selectedAssets))}
+        >
+          <FileSpreadsheet className="mr-1.5 size-4" /> Exportar
+        </Button>
+        {canEdit && (
+          <Button size="sm" variant="destructive" onClick={() => setBulkDelete(true)}>
+            <Trash2 className="mr-1.5 size-4" /> Excluir
+          </Button>
+        )}
+      </BulkActionBar>
+
+      <TagPicker
+        assetIds={tagTarget ?? []}
+        open={!!tagTarget}
+        onOpenChange={(v) => !v && setTagTarget(null)}
+      />
+
+      <AlertDialog open={bulkDelete} onOpenChange={setBulkDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-display">
+              Excluir {checked.size} equipamentos?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Os vínculos, termos e documentos desses equipamentos também serão apagados.
+              Equipamentos com vínculo ativo precisam da devolução registrada antes.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={removeSelected.isPending}
+              onClick={(e) => {
+                e.preventDefault();
+                removeSelected.mutate();
+              }}
+            >
+              Excluir definitivamente
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
 
       <AssetDetailPanel
         assetId={selectedId}
