@@ -40,6 +40,12 @@ import { renderAgreement } from "@/lib/agreements";
 import { logAudit } from "@/lib/audit";
 import { SortableHead, TablePagination } from "@/components/data-table-ui";
 import { useTableState } from "@/hooks/useTableState";
+import {
+  ChecklistFields,
+  emptyChecklist,
+  saveAssignmentChecklist,
+  type ChecklistItem,
+} from "@/components/assignment-checklist";
 
 export const Route = createFileRoute("/_authenticated/vinculos")({
   head: () => ({
@@ -68,6 +74,10 @@ function Vinculos() {
   const [open, setOpen] = useState(false);
   const [returnTarget, setReturnTarget] = useState<string | null>(null);
   const [returnCondition, setReturnCondition] = useState("");
+  const [checklist, setChecklist] = useState<ChecklistItem[]>(emptyChecklist());
+  const [checklistPhotos, setChecklistPhotos] = useState<File[]>([]);
+  const [returnChecklist, setReturnChecklist] = useState<ChecklistItem[]>(emptyChecklist());
+  const [returnPhotos, setReturnPhotos] = useState<File[]>([]);
   const [form, setForm] = useState({
     employee_id: "",
     asset_id: "",
@@ -180,11 +190,25 @@ function Vinculos() {
         entityId: assignment.id,
         details: { employee: employee.email, serial_number: asset.serial_number },
       });
+
+      try {
+        await saveAssignmentChecklist({
+          assignmentId: assignment.id,
+          kind: "entrega",
+          items: checklist,
+          photos: checklistPhotos,
+          userId: user?.id,
+        });
+      } catch (checklistError) {
+        console.error("Falha ao salvar checklist de entrega:", checklistError);
+      }
     },
     onSuccess: () => {
-      toast.success("Vínculo criado e termo de uso gerado.");
+      toast.success("Vínculo criado, termo gerado e checklist registrado.");
       setOpen(false);
       setForm({ ...form, employee_id: "", asset_id: "", notes: "" });
+      setChecklist(emptyChecklist());
+      setChecklistPhotos([]);
       queryClient.invalidateQueries();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -205,11 +229,25 @@ function Vinculos() {
       const assetId = (row?.asset as { id: string } | null)?.id;
       if (assetId) await supabase.from("assets").update({ status: "disponivel" }).eq("id", assetId);
       await logAudit({ action: "devolver", entity: "assignments", entityId: assignmentId });
+
+      try {
+        await saveAssignmentChecklist({
+          assignmentId,
+          kind: "devolucao",
+          items: returnChecklist,
+          photos: returnPhotos,
+          userId: user?.id,
+        });
+      } catch (checklistError) {
+        console.error("Falha ao salvar checklist de devolução:", checklistError);
+      }
     },
     onSuccess: () => {
-      toast.success("Devolução registrada.");
+      toast.success("Devolução registrada com checklist.");
       setReturnTarget(null);
       setReturnCondition("");
+      setReturnChecklist(emptyChecklist());
+      setReturnPhotos([]);
       queryClient.invalidateQueries();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -422,6 +460,12 @@ function Vinculos() {
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
               />
             </div>
+            <ChecklistFields
+              items={checklist}
+              onChange={setChecklist}
+              photos={checklistPhotos}
+              onPhotos={setChecklistPhotos}
+            />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>
@@ -442,12 +486,20 @@ function Vinculos() {
               O equipamento volta para a situação "Disponível".
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2">
-            <Label>Condição na devolução</Label>
-            <Textarea
-              value={returnCondition}
-              onChange={(e) => setReturnCondition(e.target.value)}
-              placeholder="Ex.: equipamento em bom estado, com carregador"
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Condição na devolução</Label>
+              <Textarea
+                value={returnCondition}
+                onChange={(e) => setReturnCondition(e.target.value)}
+                placeholder="Ex.: equipamento em bom estado, com carregador"
+              />
+            </div>
+            <ChecklistFields
+              items={returnChecklist}
+              onChange={setReturnChecklist}
+              photos={returnPhotos}
+              onPhotos={setReturnPhotos}
             />
           </div>
           <DialogFooter>

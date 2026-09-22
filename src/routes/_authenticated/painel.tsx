@@ -292,6 +292,25 @@ function Painel() {
             </Link>
           </CardHeader>
           <CardContent className="space-y-2">
+            {signedCount + (data?.pendingCount ?? 0) > 0 && (
+              <div className="mb-3 space-y-1.5">
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>Adimplência dos termos</span>
+                  <span className="font-semibold tabular-nums text-foreground">
+                    {Math.round((signedCount / (signedCount + (data?.pendingCount ?? 0))) * 100)}%
+                    assinados
+                  </span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full bg-success transition-all duration-700"
+                    style={{
+                      width: `${Math.round((signedCount / (signedCount + (data?.pendingCount ?? 0))) * 100)}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            )}
             {pendingAgreements.length === 0 && (
               <p className="text-sm text-muted-foreground">Nenhum termo pendente.</p>
             )}

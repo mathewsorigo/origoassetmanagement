@@ -14,6 +14,38 @@ export type Database = {
   }
   public: {
     Tables: {
+      agreement_reminders: {
+        Row: {
+          agreement_id: string
+          id: string
+          note: string | null
+          sent_at: string
+          sent_by: string | null
+        }
+        Insert: {
+          agreement_id: string
+          id?: string
+          note?: string | null
+          sent_at?: string
+          sent_by?: string | null
+        }
+        Update: {
+          agreement_id?: string
+          id?: string
+          note?: string | null
+          sent_at?: string
+          sent_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agreement_reminders_agreement_id_fkey"
+            columns: ["agreement_id"]
+            isOneToOne: false
+            referencedRelation: "agreements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agreement_templates: {
         Row: {
           body: string
@@ -246,6 +278,44 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      assignment_checklists: {
+        Row: {
+          assignment_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          items: Json
+          kind: string
+          photos: string[]
+        }
+        Insert: {
+          assignment_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          items?: Json
+          kind?: string
+          photos?: string[]
+        }
+        Update: {
+          assignment_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          items?: Json
+          kind?: string
+          photos?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assignment_checklists_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "assignments"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       assignments: {
         Row: {
@@ -609,6 +679,81 @@ export type Database = {
           last_status?: string | null
           last_sync_at?: string | null
           provider?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      inventory_checks: {
+        Row: {
+          asset_id: string
+          checked_at: string
+          checked_by: string | null
+          divergencia: string | null
+          id: string
+          session_id: string
+        }
+        Insert: {
+          asset_id: string
+          checked_at?: string
+          checked_by?: string | null
+          divergencia?: string | null
+          id?: string
+          session_id: string
+        }
+        Update: {
+          asset_id?: string
+          checked_at?: string
+          checked_by?: string | null
+          divergencia?: string | null
+          id?: string
+          session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_checks_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_checks_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inventory_sessions: {
+        Row: {
+          closed_at: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          scope: Json
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          closed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          scope?: Json
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          closed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          scope?: Json
+          status?: string
           updated_at?: string
         }
         Relationships: []
