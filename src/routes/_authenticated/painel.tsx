@@ -211,23 +211,9 @@ function Painel() {
             {isLoading ? (
               <Skeleton className="h-52 w-full" />
             ) : (
-              <div className="h-52">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={typeData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                    <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={11} />
-                    <YAxis allowDecimals={false} tickLine={false} axisLine={false} fontSize={11} />
-                    <Tooltip content={<ChartTooltip />} cursor={{ fill: "var(--muted)" }} />
-                    <Bar
-                      dataKey="total"
-                      name="Equipamentos"
-                      fill="var(--chart-1)"
-                      radius={[6, 6, 0, 0]}
-                      maxBarSize={44}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+              <Suspense fallback={<ChartFallback />}>
+                <TypeBars data={typeData} />
+              </Suspense>
             )}
           </CardContent>
         </Card>
