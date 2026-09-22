@@ -12,7 +12,7 @@ import { useSession } from "@/hooks/useAuth";
 
 export function AuthBackdrop({ children }: { children: React.ReactNode }) {
   return (
-    <div className="dark grid min-h-screen w-full grid-cols-1 overflow-hidden md:grid-cols-2">
+    <div className="grid min-h-screen w-full grid-cols-1 overflow-hidden md:grid-cols-2">
       {/* Coluna esquerda — dark, frase do sistema */}
       <aside className="relative hidden flex-col justify-between overflow-hidden bg-background px-10 py-12 text-foreground md:flex">
         {/* brilhos difusos da marca */}
