@@ -105,6 +105,14 @@ function Painel() {
           .from("agreements")
           .select("id", { count: "exact", head: true })
           .eq("status", "assinado"),
+        supabase
+          .from("agreements")
+          .select("id", { count: "exact", head: true })
+          .not("status", "in", "(assinado,recusado)"),
+        supabase
+          .from("assignments")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "ativo"),
       ]);
       return {
         assets,
