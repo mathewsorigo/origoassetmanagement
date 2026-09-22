@@ -104,9 +104,9 @@ function Inventario() {
     accessors: {
       nome: (s) => s.name,
       escopo: (s) =>
-        s.scope?.location || s.scope?.asset_type
-          ? `${s.scope?.location ?? "Todas as localidades"} · ${
-              s.scope?.asset_type ? assetTypeLabel[s.scope.asset_type] : "Todos os tipos"
+        s.scope?.["location"] || s.scope?.["asset_type"]
+          ? `${s.scope?.["location"] ?? "Todas as localidades"} · ${
+              s.scope?.["asset_type"] ? assetTypeLabel[s.scope["asset_type"]!] : "Todos os tipos"
             }`
           : "Todo o parque",
       conferidos: (s) => s.inventory_checks?.[0]?.count ?? 0,
@@ -214,10 +214,10 @@ function Inventario() {
                   </Link>
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground">
-                  {s.scope?.location || s.scope?.asset_type
-                    ? `${s.scope?.location ?? "Todas as localidades"} · ${
-                        s.scope?.asset_type
-                          ? (assetTypeLabel[s.scope.asset_type] ?? s.scope.asset_type)
+                  {s.scope?.["location"] || s.scope?.["asset_type"]
+                    ? `${s.scope?.["location"] ?? "Todas as localidades"} · ${
+                        s.scope?.["asset_type"]
+                          ? (assetTypeLabel[s.scope["asset_type"]!] ?? s.scope["asset_type"])
                           : "Todos os tipos"
                       }`
                     : "Todo o parque"}
@@ -227,10 +227,7 @@ function Inventario() {
                 </TableCell>
                 <TableCell className="text-sm">{formatDateTime(s.created_at)}</TableCell>
                 <TableCell>
-                  <StatusBadge
-                    value={s.status === "aberta" ? "Aberta" : "Encerrada"}
-                    tone={s.status === "aberta" ? "info" : "muted"}
-                  />
+                  <StatusBadge value={s.status} />
                 </TableCell>
                 <TableCell>
                   <Button
