@@ -71,8 +71,10 @@ function AuthenticatedLayout() {
   const navigate = useNavigate();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { data: roles } = useRoles(user);
-  const { data: profile } = useProfile(user);
+  const rolesQuery = useRoles(user);
+  const profileQuery = useProfile(user);
+  const roles = rolesQuery.data;
+  const profile = profileQuery.data;
   const [open, setOpen] = useState(false);
   const [tagsOpen, setTagsOpen] = useState(false);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
