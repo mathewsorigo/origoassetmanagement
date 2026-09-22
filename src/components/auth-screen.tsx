@@ -14,7 +14,7 @@ export function AuthBackdrop({ children }: { children: React.ReactNode }) {
   return (
     <div className="grid min-h-screen w-full grid-cols-1 overflow-hidden md:grid-cols-2">
       {/* Coluna esquerda — dark, frase do sistema */}
-      <aside className="relative hidden flex-col justify-between overflow-hidden bg-background px-10 py-12 text-foreground md:flex">
+      <aside className="dark relative hidden flex-col justify-between overflow-hidden bg-background px-10 py-12 text-foreground md:flex">
         {/* brilhos difusos da marca */}
         <div aria-hidden className="pointer-events-none absolute inset-0">
           <div className="absolute -top-32 left-1/2 h-96 w-[42rem] -translate-x-1/2 rounded-full bg-primary/25 blur-[140px]" />
