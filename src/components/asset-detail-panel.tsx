@@ -422,13 +422,13 @@ export function AssetDetailPanel({
       >
         <SheetContent
           side="right"
-          className="w-full gap-0 p-0 sm:max-w-[880px]"
+          className="w-full gap-0 bg-white p-0 sm:max-w-[880px]"
           onOpenAutoFocus={(e) => e.preventDefault()}
         >
           <div className="flex h-full flex-col">
             <div className="grid min-h-0 flex-1 md:grid-cols-[292px_1fr]">
               {/* Coluna lateral */}
-              <aside className="overflow-y-auto border-b bg-muted/30 px-5 py-6 md:border-b-0 md:border-r">
+              <aside className="overflow-y-auto border-b bg-white px-5 py-6 md:border-b-0 md:border-r">
                 <div className="flex flex-col items-center text-center">
                   <AssetIcon
                     type={asset?.asset_type ?? "outro"}

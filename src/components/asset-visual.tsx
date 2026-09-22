@@ -28,7 +28,10 @@ export function AssetIcon({
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center justify-center overflow-hidden rounded-xl border border-primary/25 bg-primary/10 text-primary",
+        "inline-flex shrink-0 items-center justify-center overflow-hidden rounded-xl",
+        photo
+          ? "bg-white"
+          : "border border-primary/25 bg-primary/10 text-primary",
         size === "lg" ? "size-16" : "size-9",
         className,
       )}
@@ -38,7 +41,7 @@ export function AssetIcon({
           src={photo}
           alt={model ?? type}
           loading="lazy"
-          className="size-full bg-white object-contain p-0.5"
+          className="size-full bg-white object-contain p-1"
         />
       ) : (
         <Icon className={size === "lg" ? "size-8" : "size-4"} />
