@@ -126,37 +126,6 @@ function Administracao() {
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["access-users"] });
   const fail = (e: Error) => toast.error("Não foi possível concluir", { description: e.message });
 
-  const inviteMutation = useMutation({
-    mutationFn: () =>
-      invite({
-        data: {
-          email: form.email,
-          fullName: form.fullName,
-          roles: form.roles,
-          origin: window.location.origin,
-        },
-      }),
-    onSuccess: () => {
-      toast.success("Convite enviado", {
-        description: "A pessoa recebeu um e-mail para definir a própria senha.",
-      });
-      setInviteOpen(false);
-      setForm({ fullName: "", email: "", roles: ["colaborador"] });
-      refresh();
-    },
-    onError: fail,
-  });
-
-  const resendMutation = useMutation({
-    mutationFn: (u: AdminUser) =>
-      resend({ data: { userId: u.id, email: u.email ?? "", origin: window.location.origin } }),
-    onSuccess: () => {
-      toast.success("Convite reenviado.");
-      refresh();
-    },
-    onError: fail,
-  });
-
   const rolesMutation = useMutation({
     mutationFn: () => saveRoles({ data: { userId: rolesTarget!.id, roles: rolesDraft } }),
     onSuccess: () => {
