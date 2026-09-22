@@ -327,7 +327,7 @@ function Ativos() {
       list.map((a) => ({
         title: `${a.brand ?? ""} ${a.model ?? ""}`.trim() || a.serial_number,
         subtitle: `Série ${a.serial_number}${a.patrimony ? ` · Pat. ${a.patrimony}` : ""}`,
-        value: `${window.location.origin}/ativos/${a.id}`,
+        value: `${window.location.origin}/qr/${a.id}`,
       })),
     );
   }

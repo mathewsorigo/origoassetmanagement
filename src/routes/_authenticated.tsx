@@ -44,6 +44,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useProfile, useRoles, useSession, isManager, isOperator, isAdmin } from "@/hooks/useAuth";
 import { roleLabel } from "@/lib/format";
+import { rememberPendingQr } from "@/lib/pending-qr";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -90,7 +91,10 @@ function AuthenticatedLayout() {
   });
 
   useEffect(() => {
-    if (!loading && !session) navigate({ to: "/auth", replace: true });
+    if (!loading && !session) {
+      rememberPendingQr(window.location.pathname);
+      navigate({ to: "/auth", replace: true });
+    }
   }, [loading, session, navigate]);
 
   async function signOut() {
