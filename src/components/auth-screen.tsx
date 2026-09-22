@@ -153,7 +153,7 @@ export function AuthScreen() {
         <div className="mb-8 flex flex-col items-center gap-3">
           <OrigoLogo className="h-24" />
           <p className="text-xs font-medium uppercase tracking-[0.22em] text-muted-foreground">
-            Gestão de ativos de TI
+            ÓRIGO ASSET MANAGEMENT
           </p>
         </div>
 
