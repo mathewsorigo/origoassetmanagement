@@ -795,22 +795,19 @@ export function AssetDetailPanel({
                           Nenhuma alteração registrada para este equipamento.
                         </p>
                       )}
-                      {(activity ?? []).map((item) => {
-                        const actor = item.actor as { full_name: string | null; email: string } | null;
-                        return (
-                          <div key={item.id} className="rounded-lg border p-3">
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                              <p className="text-sm font-medium capitalize">{item.action}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {formatDateTime(item.created_at)}
-                              </p>
-                            </div>
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              {actor?.full_name || actor?.email || "Sistema"}
+                      {(activity ?? []).map((item) => (
+                        <div key={item.id} className="rounded-lg border p-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="text-sm font-medium capitalize">{item.action}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {formatDateTime(item.created_at)}
                             </p>
                           </div>
-                        );
-                      })}
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {item.actor_email || "Sistema"}
+                          </p>
+                        </div>
+                      ))}
                     </div>
                   </TabsContent>
                 </Tabs>
