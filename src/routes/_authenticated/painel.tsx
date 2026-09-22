@@ -173,13 +173,15 @@ function Painel() {
   return (
     <div>
       <PageHeader
+        breadcrumb="Painel"
         title="Painel"
         description="Resumo do inventário, vínculos ativos e termos que aguardam assinatura."
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="Total de equipamentos"
+          to="/ativos"
           value={assets.length}
           icon={Laptop}
           loading={isLoading}
@@ -187,6 +189,7 @@ function Painel() {
         />
         <StatCard
           label="Em uso"
+          to="/ativos"
           value={count("em_uso")}
           icon={Smartphone}
           tone="success"
@@ -195,6 +198,7 @@ function Painel() {
         />
         <StatCard
           label="Disponíveis"
+          to="/ativos"
           value={count("disponivel")}
           icon={CheckCircle2}
           tone="info"
@@ -203,6 +207,7 @@ function Painel() {
         />
         <StatCard
           label="Em manutenção"
+          to="/ativos"
           value={count("manutencao")}
           icon={AlertTriangle}
           tone="warning"
@@ -211,10 +216,10 @@ function Painel() {
         />
       </div>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-3">
-        <Card className="shadow-[var(--shadow-card)]">
+      <div className="mt-5 grid gap-3 lg:grid-cols-3">
+        <Card >
           <CardHeader>
-            <CardTitle className="font-display text-base">Equipamentos por situação</CardTitle>
+            <CardTitle>Equipamentos por situação</CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -242,9 +247,9 @@ function Painel() {
           </CardContent>
         </Card>
 
-        <Card className="shadow-[var(--shadow-card)]">
+        <Card >
           <CardHeader>
-            <CardTitle className="font-display text-base">Por tipo de equipamento</CardTitle>
+            <CardTitle>Por tipo de equipamento</CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -257,9 +262,9 @@ function Painel() {
           </CardContent>
         </Card>
 
-        <Card className="shadow-[var(--shadow-card)]">
+        <Card >
           <CardHeader>
-            <CardTitle className="font-display text-base">Vínculos por mês</CardTitle>
+            <CardTitle>Vínculos por mês</CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -273,10 +278,10 @@ function Painel() {
         </Card>
       </div>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-2">
-        <Card className="shadow-[var(--shadow-card)]">
+      <div className="mt-5 grid gap-3 lg:grid-cols-2">
+        <Card >
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="font-display text-base">
+            <CardTitle>
               Termos pendentes
               <span className="ml-2 text-sm font-normal text-muted-foreground">
                 {data?.pendingCount ?? 0}
@@ -293,7 +298,7 @@ function Painel() {
             {pendingAgreements.map((a) => (
               <div
                 key={a.id}
-                className="flex items-center justify-between gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/40"
+                className="flex items-center justify-between gap-3 rounded-md border p-2.5 transition-colors hover:bg-muted/30"
               >
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">
@@ -309,9 +314,9 @@ function Painel() {
           </CardContent>
         </Card>
 
-        <Card className="shadow-[var(--shadow-card)]">
+        <Card >
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="font-display text-base">
+            <CardTitle>
               Últimos vínculos
               <span className="ml-2 text-sm font-normal text-muted-foreground">
                 {data?.activeCount ?? 0} ativos
@@ -334,7 +339,7 @@ function Painel() {
               return (
                 <div
                   key={a.id}
-                  className="flex items-center justify-between gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/40"
+                  className="flex items-center justify-between gap-3 rounded-md border p-2.5 transition-colors hover:bg-muted/30"
                 >
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">
@@ -353,9 +358,9 @@ function Painel() {
           </CardContent>
         </Card>
 
-        <Card className="shadow-[var(--shadow-card)] lg:col-span-2">
+        <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 font-display text-base">
+            <CardTitle className="flex items-center gap-2">
               <CalendarClock className="size-4 text-primary" /> Locações vencendo em 60 dias
             </CardTitle>
           </CardHeader>
@@ -375,7 +380,7 @@ function Painel() {
                   return (
                     <div
                       key={a.id}
-                      className="rounded-xl border p-3 transition-shadow hover:shadow-[var(--shadow-card)]"
+                      className="rounded-lg border p-3 transition-colors hover:bg-muted/30"
                     >
                       <p className="truncate text-sm font-medium">
                         {`${a.brand ?? ""} ${a.model ?? ""}`.trim() || a.serial_number}
@@ -385,7 +390,7 @@ function Painel() {
                       </p>
                       <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
                         <div
-                          className="h-full rounded-full bg-gradient-to-r from-warning to-destructive transition-all duration-700"
+                          className="h-full rounded-full bg-warning transition-all duration-700"
                           style={{ width: `${pct}%` }}
                         />
                       </div>
@@ -401,7 +406,7 @@ function Painel() {
         </Card>
       </div>
 
-      <div className="mt-6 flex items-center gap-2 rounded-xl border bg-gradient-to-r from-primary/8 via-card to-card p-4 text-sm text-muted-foreground">
+      <div className="mt-5 flex items-center gap-2 rounded-lg border bg-card p-4 text-[13px] text-muted-foreground">
         <FileSignature className="size-4 shrink-0 text-primary" />
         Ao vincular um ativo a um colaborador, o termo de uso é gerado automaticamente e fica
         disponível em Termos para envio de assinatura.

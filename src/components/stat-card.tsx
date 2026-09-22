@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
-export function AnimatedNumber({ value, duration = 700 }: { value: number; duration?: number }) {
+export function AnimatedNumber({ value, duration = 600 }: { value: number; duration?: number }) {
   const [shown, setShown] = useState(0);
   const fromRef = useRef(0);
 
@@ -26,6 +27,13 @@ export function AnimatedNumber({ value, duration = 700 }: { value: number; durat
   return <>{shown.toLocaleString("pt-BR")}</>;
 }
 
+const tones = {
+  primary: { text: "text-primary", bg: "bg-primary" },
+  success: { text: "text-success", bg: "bg-success" },
+  info: { text: "text-info", bg: "bg-info" },
+  warning: { text: "text-warning-foreground", bg: "bg-warning" },
+} as const;
+
 export function StatCard({
   label,
   value,
@@ -33,56 +41,52 @@ export function StatCard({
   hint,
   loading,
   tone = "primary",
+  to,
+  search,
 }: {
   label: string;
   value: number;
   icon: LucideIcon;
   hint?: string;
   loading?: boolean;
-  tone?: "primary" | "success" | "info" | "warning";
+  tone?: keyof typeof tones;
+  to?: string;
+  search?: Record<string, string>;
 }) {
-  const tones = {
-    primary: "from-primary/12 text-primary bg-primary",
-    success: "from-success/15 text-success bg-success",
-    info: "from-info/12 text-info bg-info",
-    warning: "from-warning/25 text-warning-foreground bg-warning",
-  } as const;
-
-  return (
-    <Card className="group relative overflow-hidden border-border/70 shadow-[var(--shadow-card)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[var(--shadow-elevated)]">
-      <span
-        className={cn("absolute inset-y-0 left-0 w-1.5", tones[tone].split(" ")[2])}
-        aria-hidden
-      />
-      <div
-        className={cn(
-          "pointer-events-none absolute inset-0 bg-gradient-to-br to-transparent opacity-70",
-          tones[tone].split(" ")[0],
-        )}
-      />
-      <CardContent className="relative flex items-center justify-between pt-6">
+  const t = tones[tone];
+  const body = (
+    <Card className="group relative overflow-hidden transition-colors hover:border-primary/40">
+      <span className={cn("absolute inset-x-0 top-0 h-0.5 opacity-70", t.bg)} aria-hidden />
+      <CardContent className="flex items-start justify-between gap-3 p-4">
         <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             {label}
           </p>
           {loading ? (
-            <Skeleton className="mt-2 h-8 w-14" />
+            <Skeleton className="mt-2 h-7 w-14" />
           ) : (
-            <p className="mt-2 font-display text-3xl font-semibold tabular-nums">
+            <p className="num mt-1.5 font-display text-[26px] leading-none font-semibold">
               <AnimatedNumber value={value} />
             </p>
           )}
-          {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
+          {hint && <p className="mt-1.5 text-xs text-muted-foreground">{hint}</p>}
         </div>
         <div
           className={cn(
-            "flex size-12 shrink-0 items-center justify-center rounded-2xl bg-card/70 ring-1 ring-border/70 transition-transform duration-300 group-hover:scale-105",
-            tones[tone].split(" ")[1],
+            "flex size-9 shrink-0 items-center justify-center rounded-md border bg-muted/40",
+            t.text,
           )}
         >
-          <Icon className="size-5" />
+          <Icon className="size-4" />
         </div>
       </CardContent>
     </Card>
+  );
+
+  if (!to) return body;
+  return (
+    <Link to={to} search={search as never} className="block">
+      {body}
+    </Link>
   );
 }

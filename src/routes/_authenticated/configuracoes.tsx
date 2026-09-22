@@ -58,6 +58,7 @@ function Configuracoes() {
   return (
     <div>
       <PageHeader
+        breadcrumb="Configurações"
         title="Configurações"
         description="Sua conta, as listas usadas nos cadastros e as preferências dos termos."
       />

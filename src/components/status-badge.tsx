@@ -1,34 +1,70 @@
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { agreementStatusLabel, assetStatusLabel, employeeStatusLabel } from "@/lib/format";
 
-const tones: Record<string, string> = {
-  disponivel: "bg-info/15 text-info border-info/30",
-  em_uso: "bg-success/15 text-success border-success/30",
-  manutencao: "bg-warning/20 text-warning-foreground border-warning/40",
-  devolvido: "bg-muted text-muted-foreground border-border",
-  extraviado: "bg-destructive/15 text-destructive border-destructive/30",
-  rascunho: "bg-muted text-muted-foreground border-border",
-  enviado: "bg-info/15 text-info border-info/30",
-  visualizado: "bg-warning/20 text-warning-foreground border-warning/40",
-  assinado: "bg-success/15 text-success border-success/30",
-  recusado: "bg-destructive/15 text-destructive border-destructive/30",
-  expirado: "bg-destructive/10 text-destructive border-destructive/20",
-  ativo: "bg-success/15 text-success border-success/30",
-  inativo: "bg-muted text-muted-foreground border-border",
-  afastado: "bg-warning/20 text-warning-foreground border-warning/40",
-  encerrado: "bg-muted text-muted-foreground border-border",
+const tones: Record<string, { chip: string; dot: string }> = {
+  disponivel: { chip: "bg-info/8 text-info border-info/20", dot: "bg-info" },
+  em_uso: { chip: "bg-success/8 text-success border-success/20", dot: "bg-success" },
+  manutencao: {
+    chip: "bg-warning/12 text-warning-foreground border-warning/30",
+    dot: "bg-warning",
+  },
+  devolvido: { chip: "bg-muted text-muted-foreground border-border", dot: "bg-muted-foreground" },
+  extraviado: {
+    chip: "bg-destructive/8 text-destructive border-destructive/20",
+    dot: "bg-destructive",
+  },
+  rascunho: { chip: "bg-muted text-muted-foreground border-border", dot: "bg-muted-foreground" },
+  enviado: { chip: "bg-info/8 text-info border-info/20", dot: "bg-info" },
+  visualizado: {
+    chip: "bg-warning/12 text-warning-foreground border-warning/30",
+    dot: "bg-warning",
+  },
+  assinado: { chip: "bg-success/8 text-success border-success/20", dot: "bg-success" },
+  recusado: {
+    chip: "bg-destructive/8 text-destructive border-destructive/20",
+    dot: "bg-destructive",
+  },
+  expirado: {
+    chip: "bg-destructive/8 text-destructive border-destructive/20",
+    dot: "bg-destructive",
+  },
+  ativo: { chip: "bg-success/8 text-success border-success/20", dot: "bg-success" },
+  inativo: { chip: "bg-muted text-muted-foreground border-border", dot: "bg-muted-foreground" },
+  afastado: {
+    chip: "bg-warning/12 text-warning-foreground border-warning/30",
+    dot: "bg-warning",
+  },
+  encerrado: { chip: "bg-muted text-muted-foreground border-border", dot: "bg-muted-foreground" },
+  convidado: {
+    chip: "bg-warning/12 text-warning-foreground border-warning/30",
+    dot: "bg-warning",
+  },
+  desativado: {
+    chip: "bg-destructive/8 text-destructive border-destructive/20",
+    dot: "bg-destructive",
+  },
 };
 
-export function StatusBadge({ value }: { value: string }) {
+export function StatusBadge({ value, className }: { value: string; className?: string }) {
   const label =
     assetStatusLabel[value] ??
     agreementStatusLabel[value] ??
     employeeStatusLabel[value] ??
     (value === "encerrado" ? "Encerrado" : value);
+  const tone = tones[value] ?? {
+    chip: "bg-muted text-muted-foreground border-border",
+    dot: "bg-muted-foreground",
+  };
   return (
-    <Badge variant="outline" className={cn("font-medium", tones[value])}>
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] font-medium whitespace-nowrap",
+        tone.chip,
+        className,
+      )}
+    >
+      <span className={cn("size-1.5 rounded-full", tone.dot)} aria-hidden />
       {label}
-    </Badge>
+    </span>
   );
 }
