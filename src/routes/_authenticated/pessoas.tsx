@@ -1,0 +1,313 @@
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
+import { Plus, Search } from "lucide-react";
+import { toast } from "sonner";
+import { PageHeader } from "@/components/page-header";
+import { StatusBadge } from "@/components/status-badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { supabase } from "@/integrations/supabase/client";
+import { useRoles, useSession, isOperator } from "@/hooks/useAuth";
+import { employeeStatusLabel } from "@/lib/format";
+import { logAudit } from "@/lib/audit";
+import { exportToExcel } from "@/lib/excel";
+
+export const Route = createFileRoute("/_authenticated/pessoas")({
+  head: () => ({
+    meta: [
+      { title: "Colaboradores · Órigo Ativos" },
+      {
+        name: "description",
+        content: "Cadastro de colaboradores da Órigo Energia e equipamentos em uso por cada um.",
+      },
+      { property: "og:title", content: "Colaboradores · Órigo Ativos" },
+      { property: "og:description", content: "Quem usa qual equipamento na Órigo Energia." },
+    ],
+  }),
+  component: Pessoas,
+});
+
+const emptyForm = {
+  full_name: "",
+  email: "",
+  cpf: "",
+  phone: "",
+  job_title: "",
+  department: "",
+  unit: "",
+  manager_name: "",
+  status: "ativo",
+};
+
+function Pessoas() {
+  const queryClient = useQueryClient();
+  const { user } = useSession();
+  const { data: roles } = useRoles(user);
+  const canEdit = isOperator(roles);
+  const [term, setTerm] = useState("");
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ ...emptyForm });
+
+  const { data: employees, isLoading } = useQuery({
+    queryKey: ["employees"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("employees")
+        .select("*, assignments(id,status,asset:assets(serial_number,brand,model))")
+        .order("full_name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const create = useMutation({
+    mutationFn: async () => {
+      if (!form.full_name.trim() || !form.email.trim())
+        throw new Error("Nome e e-mail são obrigatórios.");
+      const { data, error } = await supabase
+        .from("employees")
+        .insert({
+          full_name: form.full_name.trim(),
+          email: form.email.trim().toLowerCase(),
+          cpf: form.cpf || null,
+          phone: form.phone || null,
+          job_title: form.job_title || null,
+          department: form.department || null,
+          unit: form.unit || null,
+          manager_name: form.manager_name || null,
+          status: form.status as "ativo",
+        })
+        .select("id")
+        .single();
+      if (error) throw error;
+      await logAudit({
+        action: "criar",
+        entity: "employees",
+        entityId: data.id,
+        details: { email: form.email },
+      });
+    },
+    onSuccess: () => {
+      toast.success("Colaborador cadastrado.");
+      setOpen(false);
+      setForm({ ...emptyForm });
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const filtered = useMemo(() => {
+    const t = term.trim().toLowerCase();
+    if (!t) return employees ?? [];
+    return (employees ?? []).filter((e) =>
+      [e.full_name, e.email, e.department, e.job_title, e.unit]
+        .filter(Boolean)
+        .some((v) => String(v).toLowerCase().includes(t)),
+    );
+  }, [employees, term]);
+
+  function activeAssets(row: (typeof filtered)[number]) {
+    return (
+      (row.assignments as Array<{
+        status: string;
+        asset: { serial_number: string; brand: string | null; model: string | null } | null;
+      }> | null) ?? []
+    ).filter((a) => a.status === "ativo");
+  }
+
+  return (
+    <div>
+      <PageHeader
+        title="Colaboradores"
+        description="Cadastro das pessoas que utilizam os equipamentos da Órigo."
+        actions={
+          <>
+            <Button
+              variant="outline"
+              onClick={() =>
+                exportToExcel(
+                  "colaboradores",
+                  filtered.map((e) => ({
+                    Nome: e.full_name,
+                    "E-mail": e.email,
+                    CPF: e.cpf,
+                    Cargo: e.job_title,
+                    Área: e.department,
+                    Unidade: e.unit,
+                    Gestor: e.manager_name,
+                    Situação: employeeStatusLabel[e.status],
+                    "Equipamentos em uso": activeAssets(e).length,
+                  })),
+                )
+              }
+            >
+              Exportar Excel
+            </Button>
+            {canEdit && (
+              <Button onClick={() => setOpen(true)}>
+                <Plus className="mr-2 size-4" /> Novo colaborador
+              </Button>
+            )}
+          </>
+        }
+      />
+
+      <Card className="p-4">
+        <div className="relative max-w-md">
+          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            className="pl-9"
+            placeholder="Buscar por nome, e-mail, área…"
+            value={term}
+            onChange={(e) => setTerm(e.target.value)}
+          />
+        </div>
+
+        <div className="mt-4 overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Colaborador</TableHead>
+                <TableHead>Área / Cargo</TableHead>
+                <TableHead>Unidade</TableHead>
+                <TableHead>Equipamentos em uso</TableHead>
+                <TableHead>Situação</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground">
+                    Carregando…
+                  </TableCell>
+                </TableRow>
+              )}
+              {!isLoading && filtered.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground">
+                    Nenhum colaborador encontrado.
+                  </TableCell>
+                </TableRow>
+              )}
+              {filtered.map((e) => (
+                <TableRow key={e.id}>
+                  <TableCell>
+                    <Link
+                      to="/pessoas/$id"
+                      params={{ id: e.id }}
+                      className="font-medium hover:text-primary hover:underline"
+                    >
+                      {e.full_name}
+                    </Link>
+                    <p className="text-xs text-muted-foreground">{e.email}</p>
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    {e.department ?? "—"}
+                    <p className="text-xs text-muted-foreground">{e.job_title ?? ""}</p>
+                  </TableCell>
+                  <TableCell className="text-sm">{e.unit ?? "—"}</TableCell>
+                  <TableCell className="text-sm">
+                    {activeAssets(e).length === 0 ? (
+                      <span className="text-muted-foreground">—</span>
+                    ) : (
+                      activeAssets(e).map((a, i) => (
+                        <p key={i} className="text-xs">
+                          {a.asset?.brand} {a.asset?.model} · {a.asset?.serial_number}
+                        </p>
+                      ))
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <StatusBadge value={e.status} />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </Card>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-display">Novo colaborador</DialogTitle>
+            <DialogDescription>
+              Os dados aqui preenchem automaticamente o termo de uso do equipamento.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {(
+              [
+                ["full_name", "Nome completo *"],
+                ["email", "E-mail corporativo *"],
+                ["cpf", "CPF"],
+                ["phone", "Telefone"],
+                ["job_title", "Cargo"],
+                ["department", "Área"],
+                ["unit", "Unidade"],
+                ["manager_name", "Gestor"],
+              ] as const
+            ).map(([key, label]) => (
+              <div key={key} className="space-y-2">
+                <Label>{label}</Label>
+                <Input
+                  value={form[key]}
+                  onChange={(ev) => setForm({ ...form, [key]: ev.target.value })}
+                />
+              </div>
+            ))}
+            <div className="space-y-2">
+              <Label>Situação</Label>
+              <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(employeeStatusLabel).map(([v, l]) => (
+                    <SelectItem key={v} value={v}>
+                      {l}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={() => create.mutate()} disabled={create.isPending}>
+              Salvar colaborador
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

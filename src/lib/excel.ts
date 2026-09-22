@@ -1,0 +1,17 @@
+import * as XLSX from "xlsx";
+
+export function exportToExcel(fileName: string, rows: Array<Record<string, unknown>>) {
+  const sheet = XLSX.utils.json_to_sheet(rows.length ? rows : [{}]);
+  const book = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(book, sheet, "Dados");
+  XLSX.writeFile(book, `${fileName}-${new Date().toISOString().slice(0, 10)}.xlsx`);
+}
+
+export function readSpreadsheet(file: ArrayBuffer): Array<Record<string, unknown>> {
+  const book = XLSX.read(file, { type: "array" });
+  const first = book.SheetNames[0];
+  if (!first) return [];
+  const sheet = book.Sheets[first];
+  if (!sheet) return [];
+  return XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
+}
