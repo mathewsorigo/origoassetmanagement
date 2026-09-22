@@ -98,18 +98,10 @@ const statusLabel: Record<AdminUser["status"], string> = {
 function Administracao() {
   const queryClient = useQueryClient();
   const listUsers = useServerFn(listAccessUsers);
-  const invite = useServerFn(inviteAccessUser);
-  const resend = useServerFn(resendAccessInvite);
   const saveRoles = useServerFn(setAccessRoles);
   const setActive = useServerFn(setAccessActive);
   const revoke = useServerFn(revokeAccessUser);
 
-  const [inviteOpen, setInviteOpen] = useState(false);
-  const [form, setForm] = useState<{ fullName: string; email: string; roles: AdminRole[] }>({
-    fullName: "",
-    email: "",
-    roles: ["colaborador"],
-  });
   const [rolesTarget, setRolesTarget] = useState<AdminUser | null>(null);
   const [rolesDraft, setRolesDraft] = useState<AdminRole[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<AdminUser | null>(null);
@@ -199,13 +191,7 @@ function Administracao() {
       <PageHeader
         breadcrumb="Acessos"
         title="Acessos"
-        description="Convide pessoas, defina o que cada uma pode fazer e controle contas ativas."
-        actions={
-          <Button onClick={() => setInviteOpen(true)}>
-            <MailPlus className="mr-2 size-4" />
-            Convidar pessoa
-          </Button>
-        }
+        description="Libere e-mails corporativos, defina o que cada pessoa pode fazer e controle contas ativas."
       />
 
       <Card className="overflow-x-auto p-4">
@@ -303,12 +289,6 @@ function Administracao() {
                         <ShieldCheck className="mr-2 size-4" />
                         Alterar papéis
                       </DropdownMenuItem>
-                      {u.status === "convidado" && (
-                        <DropdownMenuItem onSelect={() => resendMutation.mutate(u)}>
-                          <RefreshCw className="mr-2 size-4" />
-                          Reenviar convite
-                        </DropdownMenuItem>
-                      )}
                       <DropdownMenuSeparator />
                       {u.status === "desativado" ? (
                         <DropdownMenuItem
@@ -364,66 +344,6 @@ function Administracao() {
 
       <AllowedEmailsCard />
 
-
-      <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="font-display">Convidar pessoa</DialogTitle>
-            <DialogDescription>
-              Ela recebe um e-mail com um link para definir a própria senha.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-2">
-              <Label htmlFor="inv-nome">Nome completo</Label>
-              <Input
-                id="inv-nome"
-                value={form.fullName}
-                onChange={(e) => setForm({ ...form, fullName: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="inv-email">E-mail corporativo</Label>
-              <Input
-                id="inv-email"
-                type="email"
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Papéis</Label>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {allRoles.map((role) => (
-                  <label key={role} className="flex items-center gap-2 rounded-lg border p-2 text-sm">
-                    <Checkbox
-                      checked={form.roles.includes(role)}
-                      onCheckedChange={(v) =>
-                        setForm({
-                          ...form,
-                          roles: v
-                            ? [...form.roles, role]
-                            : form.roles.filter((r) => r !== role),
-                        })
-                      }
-                    />
-                    {roleLabel[role]}
-                  </label>
-                ))}
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setInviteOpen(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={() => inviteMutation.mutate()} disabled={inviteMutation.isPending}>
-              {inviteMutation.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
-              Enviar convite
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={!!rolesTarget} onOpenChange={(v) => !v && setRolesTarget(null)}>
         <DialogContent>
