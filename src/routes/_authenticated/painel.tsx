@@ -311,7 +311,12 @@ function Painel() {
 
         <Card className="shadow-[var(--shadow-card)]">
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="font-display text-base">Últimos vínculos</CardTitle>
+            <CardTitle className="font-display text-base">
+              Últimos vínculos
+              <span className="ml-2 text-sm font-normal text-muted-foreground">
+                {data?.activeCount ?? 0} ativos
+              </span>
+            </CardTitle>
             <Link to="/vinculos" className="text-xs text-primary hover:underline">
               Ver todos
             </Link>
