@@ -29,6 +29,13 @@
       "when": 1790101224558,
       "tag": "0003_tighten_tag_read_policies",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790101553649,
+      "tag": "0004_settings_lists_and_profile_status",
+      "breakpoints": true
     }
   ]
 }
