@@ -55,6 +55,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { roleLabel, formatDate } from "@/lib/format";
+import { SortableHead, TablePagination } from "@/components/data-table-ui";
+import { useTableState } from "@/hooks/useTableState";
 import {
   inviteAccessUser,
   listAccessUsers,
@@ -118,6 +120,17 @@ function Administracao() {
     queryKey: ["access-users"],
     queryFn: () => listUsers(),
     staleTime: 60 * 1000,
+  });
+
+  const table = useTableState(users, {
+    key: "acessos",
+    accessors: {
+      pessoa: (u) => u.full_name ?? u.email,
+      situacao: (u) => u.status,
+      convite: (u) => u.invited_at,
+      ultimo: (u) => u.last_sign_in_at,
+    },
+    defaultSort: { key: "pessoa", dir: "asc" },
   });
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["access-users"] });
@@ -204,11 +217,35 @@ function Administracao() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Pessoa</TableHead>
-              <TableHead>Situação</TableHead>
+              <SortableHead
+                columnKey="pessoa"
+                label="Pessoa"
+                sortKey={table.sortKey}
+                sortDir={table.sortDir}
+                onToggle={table.toggleSort}
+              />
+              <SortableHead
+                columnKey="situacao"
+                label="Situação"
+                sortKey={table.sortKey}
+                sortDir={table.sortDir}
+                onToggle={table.toggleSort}
+              />
               <TableHead>Papéis</TableHead>
-              <TableHead>Convite</TableHead>
-              <TableHead>Último acesso</TableHead>
+              <SortableHead
+                columnKey="convite"
+                label="Convite"
+                sortKey={table.sortKey}
+                sortDir={table.sortDir}
+                onToggle={table.toggleSort}
+              />
+              <SortableHead
+                columnKey="ultimo"
+                label="Último acesso"
+                sortKey={table.sortKey}
+                sortDir={table.sortDir}
+                onToggle={table.toggleSort}
+              />
               <TableHead className="w-10" />
             </TableRow>
           </TableHeader>
@@ -221,7 +258,7 @@ function Administracao() {
                   </TableCell>
                 </TableRow>
               ))}
-            {(users ?? []).map((u) => (
+            {table.pageRows.map((u) => (
               <TableRow key={u.id}>
                 <TableCell className="text-sm">
                   <p className="font-medium">{u.full_name ?? "—"}</p>
@@ -301,7 +338,7 @@ function Administracao() {
                 </TableCell>
               </TableRow>
             ))}
-            {!isLoading && (users ?? []).length === 0 && (
+            {!isLoading && table.total === 0 && (
               <TableRow>
                 <TableCell colSpan={6} className="text-center text-muted-foreground">
                   Nenhum acesso cadastrado.
