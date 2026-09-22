@@ -109,7 +109,7 @@ function AuthPage() {
     <div className="flex min-h-screen items-center justify-center bg-secondary/40 px-4 py-10">
       <div className="w-full max-w-md">
         <Link to="/" className="mb-6 flex items-center justify-center gap-3">
-          <OrigoLogo className="h-12" />
+          <OrigoLogo className="h-24" />
         </Link>
 
         <Card className="shadow-[var(--shadow-elevated)]">
