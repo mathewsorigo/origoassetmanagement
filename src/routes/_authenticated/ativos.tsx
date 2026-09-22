@@ -51,7 +51,7 @@ export const Route = createFileRoute("/_authenticated/ativos")({
       { property: "og:description", content: "Inventário de equipamentos da Órigo Energia." },
     ],
   }),
-  component: Ativos;
+  component: Ativos,
 });
 
 const emptyForm = {
