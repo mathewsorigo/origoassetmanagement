@@ -33,7 +33,7 @@ export function RowActions({
           <Pencil className="mr-2 size-4" /> Editar
         </DropdownMenuItem>
         <DropdownMenuItem
-          variant="destructive"
+          className="text-destructive focus:text-destructive"
           onSelect={(e) => {
             e.preventDefault();
             onDelete();
