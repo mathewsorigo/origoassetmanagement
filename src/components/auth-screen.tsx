@@ -15,12 +15,22 @@ export function AuthBackdrop({ children }: { children: React.ReactNode }) {
   return (
     <div className="grid min-h-screen w-full grid-cols-1 overflow-hidden md:grid-cols-2">
       {/* Coluna esquerda — dark, frase do sistema */}
-      <aside className="dark relative hidden flex-col justify-between overflow-hidden bg-background px-10 py-12 text-foreground md:flex">
+      <aside className="dark relative hidden flex-col items-center justify-center overflow-hidden bg-background px-10 py-12 text-foreground md:flex">
         {/* brilhos difusos da marca */}
         <div aria-hidden className="pointer-events-none absolute inset-0">
           <div className="absolute -top-32 left-1/2 h-96 w-[42rem] -translate-x-1/2 rounded-full bg-primary/25 blur-[140px]" />
           <div className="absolute -bottom-40 -right-24 h-80 w-80 rounded-full bg-accent/30 blur-[120px]" />
           <div className="absolute -bottom-32 -left-24 h-72 w-72 rounded-full bg-primary-glow/15 blur-[110px]" />
+          {/* ícone de computador discreto cobrindo toda a área escura */}
+          <Monitor
+            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-foreground"
+            style={{
+              width: "min(90%, 44rem)",
+              height: "min(90%, 44rem)",
+              opacity: 0.045,
+            }}
+            strokeWidth={0.5}
+          />
           {/* malha de pontos */}
           <div
             className="absolute inset-0 opacity-[0.13]"
@@ -33,7 +43,6 @@ export function AuthBackdrop({ children }: { children: React.ReactNode }) {
             }}
           />
         </div>
-
 
         <div className="relative max-w-md space-y-6">
           <h2 className="text-balance text-3xl font-semibold leading-tight tracking-tight text-foreground sm:text-4xl">
@@ -66,7 +75,7 @@ export function AuthBackdrop({ children }: { children: React.ReactNode }) {
           </ul>
         </div>
 
-        <div className="relative text-xs text-muted-foreground/80">
+        <div className="absolute bottom-8 left-10 right-10 text-xs text-muted-foreground/80">
           © 2026 Órigo Energia · Órigo Ativos
         </div>
       </aside>
