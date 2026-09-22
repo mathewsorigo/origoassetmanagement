@@ -36,7 +36,7 @@ export function AuthBackdrop({ children }: { children: React.ReactNode }) {
 
         <div className="relative">
           <span className="text-sm font-semibold uppercase tracking-[0.22em] text-primary/90">
-            Órigo Ativos
+            ÓRIGO ASSET MANAGEMENT
           </span>
         </div>
 
