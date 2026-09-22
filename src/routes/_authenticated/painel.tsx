@@ -114,7 +114,7 @@ function Painel() {
           .from("assignments")
           .select("id", { count: "exact", head: true })
           .eq("status", "ativo"),
-      ]);
+        ]);
       return {
         assets,
         employees,
@@ -122,6 +122,8 @@ function Painel() {
         agreements: agreements.data ?? [],
         assignments: assignments.data ?? [],
         signedCount: signed.count ?? 0,
+        pendingCount: pending.count ?? 0,
+        activeCount: active.count ?? 0,
       };
     },
   });
