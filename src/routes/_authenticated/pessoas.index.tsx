@@ -298,6 +298,13 @@ function Pessoas() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={allChecked}
+                    onCheckedChange={toggleAll}
+                    aria-label="Selecionar todos"
+                  />
+                </TableHead>
                 <TableHead>Colaborador</TableHead>
                 <TableHead>Área / Cargo</TableHead>
                 <TableHead>Unidade</TableHead>
@@ -310,7 +317,7 @@ function Pessoas() {
               {isLoading &&
                 Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={`s-${i}`}>
-                    {Array.from({ length: 6 }).map((__, j) => (
+                    {Array.from({ length: 7 }).map((__, j) => (
                       <TableCell key={j}>
                         <Skeleton className="h-4 w-full max-w-40" />
                       </TableCell>
@@ -319,7 +326,7 @@ function Pessoas() {
                 ))}
               {!isLoading && filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-12">
+                  <TableCell colSpan={7} className="py-12">
                     <div className="flex flex-col items-center gap-3 text-center">
                       <span className="flex size-14 items-center justify-center rounded-2xl border border-dashed border-primary/30 bg-primary/5 text-primary">
                         <UserSearch className="size-6" />
@@ -348,6 +355,13 @@ function Pessoas() {
                       selected && "bg-primary/[0.07] hover:bg-primary/10",
                     )}
                   >
+                    <TableCell onClick={(ev) => ev.stopPropagation()}>
+                      <Checkbox
+                        checked={checked.has(e.id)}
+                        onCheckedChange={() => toggleRow(e.id)}
+                        aria-label="Selecionar colaborador"
+                      />
+                    </TableCell>
                     <TableCell>
                       <p
                         className={cn(
@@ -378,7 +392,7 @@ function Pessoas() {
                     <TableCell>
                       <StatusBadge value={e.status} />
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right" onClick={(ev) => ev.stopPropagation()}>
                       {canEdit && (
                         <RowActions
                           onEdit={() => {
@@ -398,6 +412,54 @@ function Pessoas() {
           </Table>
         </div>
       </Card>
+
+      <BulkActionBar
+        count={checked.size}
+        total={filtered.length}
+        noun="colaboradores"
+        onClear={() => setChecked(new Set())}
+      >
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() =>
+            exportToExcel("colaboradores-selecionados", rowsToExport(selectedEmployees))
+          }
+        >
+          <FileSpreadsheet className="mr-1.5 size-4" /> Exportar
+        </Button>
+        {canEdit && (
+          <Button size="sm" variant="destructive" onClick={() => setBulkDelete(true)}>
+            <Trash2 className="mr-1.5 size-4" /> Excluir
+          </Button>
+        )}
+      </BulkActionBar>
+
+      <AlertDialog open={bulkDelete} onOpenChange={setBulkDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-display">
+              Excluir {checked.size} colaboradores?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Os vínculos, termos e documentos dessas pessoas também serão apagados. Quem tem
+              equipamento em uso precisa da devolução registrada antes.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={removeSelected.isPending}
+              onClick={(ev) => {
+                ev.preventDefault();
+                removeSelected.mutate();
+              }}
+            >
+              Excluir definitivamente
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(v) => !v && setDeleteTarget(null)}>
         <AlertDialogContent>
