@@ -163,7 +163,6 @@ function MinhaConta() {
     setBusy(true);
     const { error } = await supabase.auth.updateUser({
       password: next,
-      // @ts-expect-error: aceito pelo servidor quando a troca exige a senha atual
       current_password: current,
     });
     setBusy(false);
