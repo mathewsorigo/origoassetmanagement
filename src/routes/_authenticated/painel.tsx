@@ -276,7 +276,12 @@ function Painel() {
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
         <Card className="shadow-[var(--shadow-card)]">
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="font-display text-base">Termos pendentes</CardTitle>
+            <CardTitle className="font-display text-base">
+              Termos pendentes
+              <span className="ml-2 text-sm font-normal text-muted-foreground">
+                {data?.pendingCount ?? 0}
+              </span>
+            </CardTitle>
             <Link to="/termos" className="text-xs text-primary hover:underline">
               Ver todos
             </Link>
