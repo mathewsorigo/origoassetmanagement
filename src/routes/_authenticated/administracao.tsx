@@ -56,9 +56,7 @@ import { AllowedEmailsCard } from "@/components/allowed-emails-card";
 import { DeniedAttemptsCard } from "@/components/denied-attempts-card";
 import { useTableState } from "@/hooks/useTableState";
 import {
-  inviteAccessUser,
   listAccessUsers,
-  resendAccessInvite,
   revokeAccessUser,
   setAccessActive,
   setAccessRoles,
