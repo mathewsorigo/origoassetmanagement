@@ -18,6 +18,7 @@ import {
   Upload,
   Plug,
   Settings,
+  ShieldCheck,
   ScrollText,
   LogOut,
   Menu,
