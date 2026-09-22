@@ -315,6 +315,19 @@ function Pessoas() {
                     <TableCell>
                       <StatusBadge value={e.status} />
                     </TableCell>
+                    <TableCell className="text-right">
+                      {canEdit && (
+                        <RowActions
+                          onEdit={() => {
+                            setPanelMode("edit");
+                            setSelectedId(e.id);
+                          }}
+                          onDelete={() =>
+                            setDeleteTarget({ id: e.id, name: e.full_name, email: e.email })
+                          }
+                        />
+                      )}
+                    </TableCell>
                   </TableRow>
                 );
               })}
@@ -323,9 +336,39 @@ function Pessoas() {
         </div>
       </Card>
 
+      <AlertDialog open={!!deleteTarget} onOpenChange={(v) => !v && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-display">Excluir colaborador?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget?.name} · {deleteTarget?.email}. O histórico de vínculos, termos e
+              documentos desta pessoa também serão apagados. Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={removeEmployee.isPending}
+              onClick={(ev) => {
+                ev.preventDefault();
+                removeEmployee.mutate();
+              }}
+            >
+              Excluir definitivamente
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <EmployeeDetailPanel
         employeeId={selectedId}
-        onOpenChange={(v) => !v && setSelectedId(null)}
+        initialMode={panelMode}
+        onOpenChange={(v) => {
+          if (!v) {
+            setSelectedId(null);
+            setPanelMode("view");
+          }
+        }}
         onNavigate={(dir) => {
           const i = filtered.findIndex((e) => e.id === selectedId);
           if (i < 0) return;
