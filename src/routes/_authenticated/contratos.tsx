@@ -75,12 +75,6 @@ const situacaoLabel: Record<ContractGroup["situacao"], string> = {
   vigente: "Vigente",
   sem_prazo: "Sem prazo",
 };
-const situacaoTone: Record<ContractGroup["situacao"], "destructive" | "warning" | "success" | "muted"> = {
-  vencida: "destructive",
-  vencendo: "warning",
-  vigente: "success",
-  sem_prazo: "muted",
-};
 
 const filters = [
   { key: "todas", label: "Todas" },
@@ -295,7 +289,7 @@ function Contratos() {
                       : g.daysLeft}
                 </TableCell>
                 <TableCell>
-                  <StatusBadge value={situacaoLabel[g.situacao]} tone={situacaoTone[g.situacao]} />
+                  <StatusBadge value={g.situacao} />
                 </TableCell>
                 <TableCell>
                   <div className="flex justify-end gap-1">
