@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { StatusBadge } from "@/components/status-badge";
 import { DocumentsPanel } from "@/components/documents-panel";
 import { AssetIcon, FieldGrid, SourceBadge } from "@/components/asset-visual";
+import { AssetQrButton } from "@/components/asset-qr-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -254,6 +255,12 @@ function AtivoDetalhe() {
             <CardTitle className="font-display text-sm">Ações rápidas</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
+            {asset && (
+              <AssetQrButton
+                asset={asset}
+                className="h-auto w-full justify-start whitespace-normal py-2 text-left"
+              />
+            )}
             {!canEdit && (
               <p className="text-sm text-muted-foreground">
                 Você tem acesso somente de consulta.
