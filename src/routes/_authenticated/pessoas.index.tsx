@@ -224,7 +224,12 @@ function Pessoas() {
   }
 
   function toggleAll() {
-    setChecked(allChecked ? new Set() : new Set(filtered.map((e) => e.id)));
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (allChecked) pageRows.forEach((e) => next.delete(e.id));
+      else pageRows.forEach((e) => next.add(e.id));
+      return next;
+    });
   }
 
   function rowsToExport(list: typeof filtered) {
