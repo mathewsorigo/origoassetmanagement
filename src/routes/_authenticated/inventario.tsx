@@ -120,8 +120,8 @@ function Inventario() {
     mutationFn: async () => {
       if (!form.name.trim()) throw new Error("Dê um nome para a conferência.");
       const scope: Record<string, string> = {};
-      if (form.location !== "todas") scope.location = form.location;
-      if (form.asset_type !== "todos") scope.asset_type = form.asset_type;
+      if (form.location !== "todas") scope["location"] = form.location;
+      if (form.asset_type !== "todos") scope["asset_type"] = form.asset_type;
       const { data, error } = await supabase
         .from("inventory_sessions")
         .insert({ name: form.name.trim(), scope, created_by: user?.id ?? null })
