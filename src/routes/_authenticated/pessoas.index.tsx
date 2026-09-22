@@ -89,6 +89,12 @@ function Pessoas() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ ...emptyForm });
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [panelMode, setPanelMode] = useState<"view" | "edit">("view");
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: string;
+    name: string;
+    email: string;
+  } | null>(null);
 
   const { data: employees, isLoading } = useQuery({
     queryKey: ["employees"],
@@ -137,6 +143,22 @@ function Pessoas() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  const removeEmployee = useMutation({
+    mutationFn: async () => {
+      if (!deleteTarget) return;
+      await deleteEmployeeCascade(deleteTarget.id, { email: deleteTarget.email });
+    },
+    onSuccess: () => {
+      toast.success("Colaborador excluído.");
+      if (deleteTarget?.id === selectedId) setSelectedId(null);
+      setDeleteTarget(null);
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+
 
   const filtered = useMemo(() => {
     const t = term.trim().toLowerCase();
