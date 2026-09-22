@@ -14,8 +14,10 @@ import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as AuthenticatedAtivosRouteImport } from './routes/_authenticated/ativos'
+import { Route as AuthenticatedAuditoriaRouteImport } from './routes/_authenticated/auditoria'
 import { Route as AuthenticatedPainelRouteImport } from './routes/_authenticated/painel'
 import { Route as AuthenticatedPessoasRouteImport } from './routes/_authenticated/pessoas'
+import { Route as AuthenticatedTermosRouteImport } from './routes/_authenticated/termos'
 import { Route as AuthenticatedVinculosRouteImport } from './routes/_authenticated/vinculos'
 import { Route as AuthenticatedAtivosIdRouteImport } from './routes/_authenticated/ativos.$id'
 import { Route as AuthenticatedPessoasIdRouteImport } from './routes/_authenticated/pessoas.$id'
@@ -44,6 +46,11 @@ const AuthenticatedAtivosRoute = AuthenticatedAtivosRouteImport.update({
   path: '/ativos',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedAuditoriaRoute = AuthenticatedAuditoriaRouteImport.update({
+  id: '/auditoria',
+  path: '/auditoria',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedPainelRoute = AuthenticatedPainelRouteImport.update({
   id: '/painel',
   path: '/painel',
@@ -52,6 +59,11 @@ const AuthenticatedPainelRoute = AuthenticatedPainelRouteImport.update({
 const AuthenticatedPessoasRoute = AuthenticatedPessoasRouteImport.update({
   id: '/pessoas',
   path: '/pessoas',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedTermosRoute = AuthenticatedTermosRouteImport.update({
+  id: '/termos',
+  path: '/termos',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedVinculosRoute = AuthenticatedVinculosRouteImport.update({
@@ -75,8 +87,10 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
   '/ativos': typeof AuthenticatedAtivosRouteWithChildren
+  '/auditoria': typeof AuthenticatedAuditoriaRoute
   '/painel': typeof AuthenticatedPainelRoute
   '/pessoas': typeof AuthenticatedPessoasRouteWithChildren
+  '/termos': typeof AuthenticatedTermosRoute
   '/vinculos': typeof AuthenticatedVinculosRoute
   '/ativos/$id': typeof AuthenticatedAtivosIdRoute
   '/pessoas/$id': typeof AuthenticatedPessoasIdRoute
@@ -86,8 +100,10 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
   '/ativos': typeof AuthenticatedAtivosRouteWithChildren
+  '/auditoria': typeof AuthenticatedAuditoriaRoute
   '/painel': typeof AuthenticatedPainelRoute
   '/pessoas': typeof AuthenticatedPessoasRouteWithChildren
+  '/termos': typeof AuthenticatedTermosRoute
   '/vinculos': typeof AuthenticatedVinculosRoute
   '/ativos/$id': typeof AuthenticatedAtivosIdRoute
   '/pessoas/$id': typeof AuthenticatedPessoasIdRoute
@@ -99,8 +115,10 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
   '/_authenticated/ativos': typeof AuthenticatedAtivosRouteWithChildren
+  '/_authenticated/auditoria': typeof AuthenticatedAuditoriaRoute
   '/_authenticated/painel': typeof AuthenticatedPainelRoute
   '/_authenticated/pessoas': typeof AuthenticatedPessoasRouteWithChildren
+  '/_authenticated/termos': typeof AuthenticatedTermosRoute
   '/_authenticated/vinculos': typeof AuthenticatedVinculosRoute
   '/_authenticated/ativos/$id': typeof AuthenticatedAtivosIdRoute
   '/_authenticated/pessoas/$id': typeof AuthenticatedPessoasIdRoute
@@ -112,8 +130,10 @@ export interface FileRouteTypes {
     | '/auth'
     | '/reset-password'
     | '/ativos'
+    | '/auditoria'
     | '/painel'
     | '/pessoas'
+    | '/termos'
     | '/vinculos'
     | '/ativos/$id'
     | '/pessoas/$id'
@@ -123,8 +143,10 @@ export interface FileRouteTypes {
     | '/auth'
     | '/reset-password'
     | '/ativos'
+    | '/auditoria'
     | '/painel'
     | '/pessoas'
+    | '/termos'
     | '/vinculos'
     | '/ativos/$id'
     | '/pessoas/$id'
@@ -135,8 +157,10 @@ export interface FileRouteTypes {
     | '/auth'
     | '/reset-password'
     | '/_authenticated/ativos'
+    | '/_authenticated/auditoria'
     | '/_authenticated/painel'
     | '/_authenticated/pessoas'
+    | '/_authenticated/termos'
     | '/_authenticated/vinculos'
     | '/_authenticated/ativos/$id'
     | '/_authenticated/pessoas/$id'
@@ -186,6 +210,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAtivosRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/auditoria': {
+      id: '/_authenticated/auditoria'
+      path: '/auditoria'
+      fullPath: '/auditoria'
+      preLoaderRoute: typeof AuthenticatedAuditoriaRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/painel': {
       id: '/_authenticated/painel'
       path: '/painel'
@@ -198,6 +229,13 @@ declare module '@tanstack/react-router' {
       path: '/pessoas'
       fullPath: '/pessoas'
       preLoaderRoute: typeof AuthenticatedPessoasRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/termos': {
+      id: '/_authenticated/termos'
+      path: '/termos'
+      fullPath: '/termos'
+      preLoaderRoute: typeof AuthenticatedTermosRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/vinculos': {
@@ -248,15 +286,19 @@ const AuthenticatedPessoasRouteWithChildren =
 
 interface AuthenticatedRouteChildren {
   AuthenticatedAtivosRoute: typeof AuthenticatedAtivosRouteWithChildren
+  AuthenticatedAuditoriaRoute: typeof AuthenticatedAuditoriaRoute
   AuthenticatedPainelRoute: typeof AuthenticatedPainelRoute
   AuthenticatedPessoasRoute: typeof AuthenticatedPessoasRouteWithChildren
+  AuthenticatedTermosRoute: typeof AuthenticatedTermosRoute
   AuthenticatedVinculosRoute: typeof AuthenticatedVinculosRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAtivosRoute: AuthenticatedAtivosRouteWithChildren,
+  AuthenticatedAuditoriaRoute: AuthenticatedAuditoriaRoute,
   AuthenticatedPainelRoute: AuthenticatedPainelRoute,
   AuthenticatedPessoasRoute: AuthenticatedPessoasRouteWithChildren,
+  AuthenticatedTermosRoute: AuthenticatedTermosRoute,
   AuthenticatedVinculosRoute: AuthenticatedVinculosRoute,
 }
 
