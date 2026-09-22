@@ -7,6 +7,8 @@ import {
   ChevronUp,
   ExternalLink,
   FileSignature,
+  Pencil,
+  Trash2,
   Undo2,
   UserPlus,
   Wrench,
@@ -15,6 +17,17 @@ import { toast } from "sonner";
 import { AssetIcon, SourceBadge } from "@/components/asset-visual";
 import { StatusBadge } from "@/components/status-badge";
 import { DocumentsPanel } from "@/components/documents-panel";
+import { DetailField, DetailSection } from "@/components/detail-field";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,9 +53,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { isOperator, useRoles, useSession } from "@/hooks/useAuth";
-import { assetStatusLabel, assetTypeLabel, formatDate, formatDateTime } from "@/lib/format";
+import {
+  assetStatusLabel,
+  assetTypeLabel,
+  formatDate,
+  formatDateTime,
+  formatMoney,
+} from "@/lib/format";
 import { renderAgreement } from "@/lib/agreements";
 import { logAudit } from "@/lib/audit";
+import { deleteAssetCascade } from "@/lib/entity-delete";
 import { enviarParaAssinatura } from "@/lib/assinatura.functions";
 
 type Employee = { id: string; full_name: string; email: string };
@@ -71,10 +91,12 @@ export function AssetDetailPanel({
   assetId,
   onOpenChange,
   onNavigate,
+  initialMode = "view",
 }: {
   assetId: string | null;
   onOpenChange: (open: boolean) => void;
   onNavigate?: ((direction: -1 | 1) => void) | undefined;
+  initialMode?: "view" | "edit";
 }) {
   const queryClient = useQueryClient();
   const { user } = useSession();
@@ -83,16 +105,22 @@ export function AssetDetailPanel({
   const enviar = useServerFn(enviarParaAssinatura);
   const open = !!assetId;
 
+  const [mode, setMode] = useState<"view" | "edit">(initialMode);
   const [form, setForm] = useState<FormState>({ ...emptyForm });
   const [dirty, setDirty] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
   const [returnOpen, setReturnOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [returnCondition, setReturnCondition] = useState("");
   const [assignForm, setAssignForm] = useState({
     employee_id: "",
     assigned_at: new Date().toISOString().slice(0, 10),
     delivery_condition: "Novo / em perfeito estado",
   });
+
+  useEffect(() => {
+    if (assetId) setMode(initialMode);
+  }, [assetId, initialMode]);
 
   const { data: asset, isLoading } = useQuery({
     queryKey: ["asset", assetId],
@@ -220,8 +248,23 @@ export function AssetDetailPanel({
     onSuccess: () => {
       toast.success("Ativo atualizado.");
       setDirty(false);
+      setMode("view");
       queryClient.invalidateQueries({ queryKey: ["assets"] });
       queryClient.invalidateQueries({ queryKey: ["asset", assetId] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const remove = useMutation({
+    mutationFn: async () => {
+      if (!assetId) return;
+      await deleteAssetCascade(assetId, { serial_number: asset?.serial_number });
+    },
+    onSuccess: () => {
+      toast.success("Ativo excluído.");
+      setDeleteOpen(false);
+      onOpenChange(false);
+      queryClient.invalidateQueries({ queryKey: ["assets"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -341,197 +384,53 @@ export function AssetDetailPanel({
     ? `${asset.brand ?? ""} ${asset.model ?? ""}`.trim() || asset.serial_number
     : "Ativo";
 
-  const quickActionClass = "h-auto w-full justify-start whitespace-normal py-2 text-left";
+  const actionClass = "h-auto w-full justify-start whitespace-normal py-2 text-left";
+  const editing = mode === "edit" && canEdit;
 
   return (
     <>
-      <Sheet open={open} onOpenChange={(v) => !v && onOpenChange(false)}>
+      <Sheet
+        open={open}
+        onOpenChange={(v) => {
+          if (!v) onOpenChange(false);
+        }}
+      >
         <SheetContent
-          side="left"
-          className="flex w-full flex-col gap-0 p-0 sm:max-w-[560px]"
+          side="right"
+          className="w-full gap-0 p-0 sm:max-w-[880px]"
           onOpenAutoFocus={(e) => e.preventDefault()}
         >
-          <div className="border-b bg-gradient-to-br from-primary/10 via-card to-card px-6 pb-5 pt-6">
-            <div className="flex items-start gap-4 pr-8">
-              <AssetIcon type={asset?.asset_type ?? "outro"} size="lg" />
-              <div className="min-w-0 flex-1">
-                {isLoading && !asset ? (
-                  <Skeleton className="h-6 w-48" />
-                ) : (
-                  <h2 className="truncate font-display text-xl font-semibold tracking-tight">
-                    {title}
-                  </h2>
-                )}
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Série {asset?.serial_number ?? "—"}
-                  {asset?.patrimony ? ` · Pat. ${asset.patrimony}` : ""}
-                </p>
-                <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-                  {asset && <StatusBadge value={asset.status} />}
-                  <Badge variant="outline">
-                    {assetTypeLabel[asset?.asset_type ?? ""] ?? "—"}
-                  </Badge>
-                  {asset?.supplier && <Badge variant="secondary">{asset.supplier}</Badge>}
-                  <SourceBadge intuneDeviceId={asset?.intune_device_id} />
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-4 flex items-center gap-2">
-              {onNavigate && (
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="size-8"
-                    aria-label="Ativo anterior"
-                    onClick={() => onNavigate(-1)}
-                  >
-                    <ChevronUp className="size-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="size-8"
-                    aria-label="Próximo ativo"
-                    onClick={() => onNavigate(1)}
-                  >
-                    <ChevronDown className="size-4" />
-                  </Button>
-                </div>
-              )}
-              {asset && (
-                <Button asChild variant="ghost" size="sm" className="ml-auto">
-                  <Link to="/ativos/$id" params={{ id: asset.id }}>
-                    Abrir ficha completa <ExternalLink className="ml-2 size-3.5" />
-                  </Link>
-                </Button>
-              )}
-            </div>
-          </div>
-
-          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
-            <Tabs defaultValue="dados">
-              <TabsList className="w-full">
-                <TabsTrigger value="dados" className="flex-1">
-                  Dados
-                </TabsTrigger>
-                <TabsTrigger value="uso" className="flex-1">
-                  Uso
-                </TabsTrigger>
-                <TabsTrigger value="documentos" className="flex-1">
-                  Documentos
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="dados" className="mt-4 space-y-4 animate-in fade-in-50">
-                {!canEdit && (
-                  <p className="rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground">
-                    Você tem acesso somente de consulta.
+          <div className="flex h-full flex-col">
+            <div className="grid min-h-0 flex-1 md:grid-cols-[292px_1fr]">
+              {/* Coluna lateral */}
+              <aside className="overflow-y-auto border-b bg-muted/30 px-5 py-6 md:border-b-0 md:border-r">
+                <div className="flex flex-col items-center text-center">
+                  <AssetIcon type={asset?.asset_type ?? "outro"} size="lg" />
+                  {isLoading && !asset ? (
+                    <Skeleton className="mt-4 h-6 w-40" />
+                  ) : (
+                    <h2 className="mt-4 w-full truncate font-display text-lg font-semibold tracking-tight">
+                      {title}
+                    </h2>
+                  )}
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Série {asset?.serial_number ?? "—"}
                   </p>
-                )}
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>Tipo</Label>
-                    <Select
-                      value={form.asset_type}
-                      disabled={!canEdit}
-                      onValueChange={(v) => set("asset_type", v)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(assetTypeLabel).map(([v, l]) => (
-                          <SelectItem key={v} value={v}>
-                            {l}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Situação</Label>
-                    <Select
-                      value={form.status}
-                      disabled={!canEdit}
-                      onValueChange={(v) => set("status", v)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(assetStatusLabel).map(([v, l]) => (
-                          <SelectItem key={v} value={v}>
-                            {l}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  {(
-                    [
-                      ["brand", "Marca"],
-                      ["model", "Modelo"],
-                      ["serial_number", "Número de série"],
-                      ["patrimony", "Patrimônio"],
-                      ["imei", "IMEI"],
-                      ["supplier", "Fornecedor"],
-                      ["contract_number", "Contrato"],
-                      ["location", "Localidade"],
-                      ["condition", "Condição"],
-                      ["monthly_cost", "Custo mensal (R$)"],
-                    ] as const
-                  ).map(([key, label]) => (
-                    <div key={key} className="space-y-2">
-                      <Label>{label}</Label>
-                      <Input
-                        value={form[key]}
-                        disabled={!canEdit}
-                        inputMode={key === "monthly_cost" ? "decimal" : undefined}
-                        onChange={(e) => set(key, e.target.value)}
-                      />
-                    </div>
-                  ))}
-                  <div className="space-y-2">
-                    <Label>Início da locação</Label>
-                    <Input
-                      type="date"
-                      value={form.lease_start}
-                      disabled={!canEdit}
-                      onChange={(e) => set("lease_start", e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Fim da locação</Label>
-                    <Input
-                      type="date"
-                      value={form.lease_end}
-                      disabled={!canEdit}
-                      onChange={(e) => set("lease_end", e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2 sm:col-span-2">
-                    <Label>Observações</Label>
-                    <Textarea
-                      value={form.notes}
-                      disabled={!canEdit}
-                      onChange={(e) => set("notes", e.target.value)}
-                    />
+                  <div className="mt-3 flex flex-wrap items-center justify-center gap-1.5">
+                    {asset && <StatusBadge value={asset.status} />}
+                    <Badge variant="outline">{assetTypeLabel[asset?.asset_type ?? ""] ?? "—"}</Badge>
+                    {asset?.supplier && <Badge variant="secondary">{asset.supplier}</Badge>}
+                    <SourceBadge intuneDeviceId={asset?.intune_device_id} />
                   </div>
                 </div>
 
-                <div className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
-                  ID no Intune: {asset?.intune_device_id || "—"} · Última verificação:{" "}
-                  {formatDateTime(asset?.intune_last_sync)}
-                </div>
-              </TabsContent>
-
-              <TabsContent value="uso" className="mt-4 space-y-4 animate-in fade-in-50">
                 {canEdit && (
-                  <div className="grid gap-2 rounded-xl border bg-card p-3 sm:grid-cols-2">
+                  <div className="mt-6 space-y-2">
+                    <p className="text-[0.7rem] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Ações
+                    </p>
                     <Button
-                      className={quickActionClass}
+                      className={actionClass}
                       disabled={!!active}
                       onClick={() => setAssignOpen(true)}
                     >
@@ -539,7 +438,7 @@ export function AssetDetailPanel({
                     </Button>
                     <Button
                       variant="outline"
-                      className={quickActionClass}
+                      className={actionClass}
                       disabled={!active}
                       onClick={() => setReturnOpen(true)}
                     >
@@ -547,21 +446,18 @@ export function AssetDetailPanel({
                     </Button>
                     <Button
                       variant="outline"
-                      className={quickActionClass}
+                      className={actionClass}
                       disabled={
-                        !activeAgreement ||
-                        activeAgreement.status === "assinado" ||
-                        send.isPending
+                        !activeAgreement || activeAgreement.status === "assinado" || send.isPending
                       }
                       onClick={() => activeAgreement && send.mutate(activeAgreement.id)}
                     >
-                      <FileSignature className="mr-2 size-4 shrink-0" /> Enviar termo para
-                      assinatura
+                      <FileSignature className="mr-2 size-4 shrink-0" /> Enviar termo para assinatura
                     </Button>
                     {asset?.status === "manutencao" ? (
                       <Button
                         variant="outline"
-                        className={quickActionClass}
+                        className={actionClass}
                         onClick={() => changeStatus.mutate("disponivel")}
                       >
                         <Wrench className="mr-2 size-4 shrink-0" /> Voltar para disponível
@@ -569,101 +465,325 @@ export function AssetDetailPanel({
                     ) : (
                       <Button
                         variant="outline"
-                        className={quickActionClass}
+                        className={actionClass}
                         disabled={!!active}
                         onClick={() => changeStatus.mutate("manutencao")}
                       >
                         <Wrench className="mr-2 size-4 shrink-0" /> Marcar em manutenção
                       </Button>
                     )}
+
+                    <div className="flex gap-2 pt-2">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => setMode(editing ? "view" : "edit")}
+                      >
+                        <Pencil className="mr-2 size-3.5" /> {editing ? "Ver dados" : "Editar"}
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => setDeleteOpen(true)}
+                      >
+                        <Trash2 className="mr-2 size-3.5" /> Excluir
+                      </Button>
+                    </div>
                   </div>
                 )}
 
-                <section className="rounded-xl border bg-card p-4">
-                  <h3 className="font-display text-sm font-semibold">Usuário atual</h3>
-                  {activeEmployee ? (
-                    <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <Link
-                          to="/pessoas/$id"
-                          params={{ id: activeEmployee.id }}
-                          className="text-sm font-medium hover:text-primary hover:underline"
-                        >
-                          {activeEmployee.full_name}
-                        </Link>
-                        <p className="text-xs text-muted-foreground">{activeEmployee.email}</p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          Entrega {formatDate(active?.assigned_at)}
-                        </p>
-                      </div>
-                      {activeAgreement && <StatusBadge value={activeAgreement.status} />}
+                <div className="mt-6 flex items-center justify-between gap-2">
+                  {onNavigate && (
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="size-8"
+                        aria-label="Ativo anterior"
+                        onClick={() => onNavigate(-1)}
+                      >
+                        <ChevronUp className="size-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="size-8"
+                        aria-label="Próximo ativo"
+                        onClick={() => onNavigate(1)}
+                      >
+                        <ChevronDown className="size-4" />
+                      </Button>
                     </div>
-                  ) : (
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      Equipamento sem usuário vinculado.
-                    </p>
                   )}
-                </section>
+                  {asset && (
+                    <Button asChild variant="ghost" size="sm" className="ml-auto">
+                      <Link to="/ativos/$id" params={{ id: asset.id }}>
+                        Ficha completa <ExternalLink className="ml-2 size-3.5" />
+                      </Link>
+                    </Button>
+                  )}
+                </div>
+              </aside>
 
-                <section className="rounded-xl border bg-card p-4">
-                  <h3 className="font-display text-sm font-semibold">Histórico de uso</h3>
-                  <div className="mt-3 space-y-2">
-                    {(history ?? []).length === 0 && (
-                      <p className="text-sm text-muted-foreground">
-                        Este ativo ainda não foi vinculado.
+              {/* Conteúdo */}
+              <div className="min-h-0 overflow-y-auto px-6 py-6">
+                <Tabs defaultValue="detalhes">
+                  <TabsList>
+                    <TabsTrigger value="detalhes">Detalhes</TabsTrigger>
+                    <TabsTrigger value="uso">Uso</TabsTrigger>
+                    <TabsTrigger value="documentos">Documentos</TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="detalhes" className="mt-5 space-y-4 animate-in fade-in-50">
+                    {!canEdit && (
+                      <p className="rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground">
+                        Você tem acesso somente de consulta.
                       </p>
                     )}
-                    {(history ?? []).map((h) => {
-                      const employee = h.employee as Employee | null;
-                      const agreement = (
-                        h.agreements as Array<{ id: string; status: string }> | null
-                      )?.[0];
-                      return (
-                        <div
-                          key={h.id}
-                          className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 transition-colors hover:bg-muted/40"
-                        >
+
+                    {!editing ? (
+                      <>
+                        <DetailSection title="Hardware">
+                          <DetailField
+                            label="Tipo"
+                            value={assetTypeLabel[asset?.asset_type ?? ""] ?? "—"}
+                          />
+                          <DetailField label="Situação" value={assetStatusLabel[form.status]} />
+                          <DetailField label="Marca" value={form.brand} />
+                          <DetailField label="Modelo" value={form.model} />
+                          <DetailField label="Condição" value={form.condition} />
+                          <DetailField label="Localidade" value={form.location} />
+                        </DetailSection>
+
+                        <DetailSection title="Identificação">
+                          <DetailField label="Número de série" value={form.serial_number} />
+                          <DetailField label="Patrimônio" value={form.patrimony} />
+                          <DetailField label="IMEI" value={form.imei} />
+                          <DetailField label="ID no Intune" value={asset?.intune_device_id} />
+                        </DetailSection>
+
+                        <DetailSection title="Contrato">
+                          <DetailField label="Fornecedor" value={form.supplier} />
+                          <DetailField label="Contrato" value={form.contract_number} />
+                          <DetailField
+                            label="Custo mensal"
+                            value={asset?.monthly_cost != null ? formatMoney(asset.monthly_cost) : ""}
+                          />
+                          <DetailField label="Início da locação" value={formatDate(form.lease_start)} />
+                          <DetailField label="Fim da locação" value={formatDate(form.lease_end)} />
+                        </DetailSection>
+
+                        <DetailSection title="Gestão" columns={1}>
+                          <DetailField label="Usuário atual" value={activeEmployee?.full_name} />
+                          <DetailField
+                            label="Última verificação no Intune"
+                            value={formatDateTime(asset?.intune_last_sync)}
+                          />
+                          <DetailField label="Cadastrado em" value={formatDate(asset?.created_at)} />
+                          <DetailField label="Observações" value={form.notes} />
+                        </DetailSection>
+                      </>
+                    ) : (
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label>Tipo</Label>
+                          <Select
+                            value={form.asset_type}
+                            onValueChange={(v) => set("asset_type", v)}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {Object.entries(assetTypeLabel).map(([v, l]) => (
+                                <SelectItem key={v} value={v}>
+                                  {l}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Situação</Label>
+                          <Select value={form.status} onValueChange={(v) => set("status", v)}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {Object.entries(assetStatusLabel).map(([v, l]) => (
+                                <SelectItem key={v} value={v}>
+                                  {l}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {(
+                          [
+                            ["brand", "Marca"],
+                            ["model", "Modelo"],
+                            ["serial_number", "Número de série"],
+                            ["patrimony", "Patrimônio"],
+                            ["imei", "IMEI"],
+                            ["supplier", "Fornecedor"],
+                            ["contract_number", "Contrato"],
+                            ["location", "Localidade"],
+                            ["condition", "Condição"],
+                            ["monthly_cost", "Custo mensal (R$)"],
+                          ] as const
+                        ).map(([key, label]) => (
+                          <div key={key} className="space-y-2">
+                            <Label>{label}</Label>
+                            <Input
+                              value={form[key]}
+                              inputMode={key === "monthly_cost" ? "decimal" : undefined}
+                              onChange={(e) => set(key, e.target.value)}
+                            />
+                          </div>
+                        ))}
+                        <div className="space-y-2">
+                          <Label>Início da locação</Label>
+                          <Input
+                            type="date"
+                            value={form.lease_start}
+                            onChange={(e) => set("lease_start", e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Fim da locação</Label>
+                          <Input
+                            type="date"
+                            value={form.lease_end}
+                            onChange={(e) => set("lease_end", e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-2 sm:col-span-2">
+                          <Label>Observações</Label>
+                          <Textarea
+                            value={form.notes}
+                            onChange={(e) => set("notes", e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </TabsContent>
+
+                  <TabsContent value="uso" className="mt-5 space-y-4 animate-in fade-in-50">
+                    <section className="rounded-xl border bg-card p-4">
+                      <h3 className="font-display text-sm font-semibold">Usuário atual</h3>
+                      {activeEmployee ? (
+                        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
                           <div>
-                            <p className="text-sm font-medium">{employee?.full_name ?? "—"}</p>
-                            <p className="text-xs text-muted-foreground">
-                              Entrega {formatDate(h.assigned_at)}
-                              {h.returned_at ? ` · Devolução ${formatDate(h.returned_at)}` : ""}
+                            <Link
+                              to="/pessoas/$id"
+                              params={{ id: activeEmployee.id }}
+                              className="text-sm font-medium hover:text-primary hover:underline"
+                            >
+                              {activeEmployee.full_name}
+                            </Link>
+                            <p className="text-xs text-muted-foreground">{activeEmployee.email}</p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              Entrega {formatDate(active?.assigned_at)}
                             </p>
                           </div>
-                          <div className="flex items-center gap-1.5">
-                            {agreement && <StatusBadge value={agreement.status} />}
-                            <StatusBadge value={h.status} />
-                          </div>
+                          {activeAgreement && <StatusBadge value={activeAgreement.status} />}
                         </div>
-                      );
-                    })}
-                  </div>
-                </section>
-              </TabsContent>
+                      ) : (
+                        <p className="mt-2 text-sm text-muted-foreground">
+                          Equipamento sem usuário vinculado.
+                        </p>
+                      )}
+                    </section>
 
-              <TabsContent value="documentos" className="mt-4 animate-in fade-in-50">
-                {assetId && <DocumentsPanel filter={{ assetId }} />}
-              </TabsContent>
-            </Tabs>
-          </div>
+                    <section className="rounded-xl border bg-card p-4">
+                      <h3 className="font-display text-sm font-semibold">Histórico de uso</h3>
+                      <div className="mt-3 space-y-2">
+                        {(history ?? []).length === 0 && (
+                          <p className="text-sm text-muted-foreground">
+                            Este ativo ainda não foi vinculado.
+                          </p>
+                        )}
+                        {(history ?? []).map((h) => {
+                          const employee = h.employee as Employee | null;
+                          const agreement = (
+                            h.agreements as Array<{ id: string; status: string }> | null
+                          )?.[0];
+                          return (
+                            <div
+                              key={h.id}
+                              className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 transition-colors hover:bg-muted/40"
+                            >
+                              <div>
+                                <p className="text-sm font-medium">{employee?.full_name ?? "—"}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  Entrega {formatDate(h.assigned_at)}
+                                  {h.returned_at
+                                    ? ` · Devolução ${formatDate(h.returned_at)}`
+                                    : ""}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                {agreement && <StatusBadge value={agreement.status} />}
+                                <StatusBadge value={h.status} />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  </TabsContent>
 
-          {canEdit && (
-            <div className="flex items-center justify-between gap-3 border-t bg-card px-6 py-4">
-              <p className="text-xs text-muted-foreground">
-                {dirty ? "Alterações não salvas" : "Tudo salvo"}
-              </p>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => onOpenChange(false)}>
-                  Fechar
-                </Button>
-                <Button onClick={() => save.mutate()} disabled={save.isPending || !dirty}>
-                  Salvar alterações
-                </Button>
+                  <TabsContent value="documentos" className="mt-5 animate-in fade-in-50">
+                    {assetId && <DocumentsPanel filter={{ assetId }} />}
+                  </TabsContent>
+                </Tabs>
               </div>
             </div>
-          )}
+
+            {editing && (
+              <div className="flex items-center justify-between gap-3 border-t bg-card px-6 py-4">
+                <p className="text-xs text-muted-foreground">
+                  {dirty ? "Alterações não salvas" : "Tudo salvo"}
+                </p>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => setMode("view")}>
+                    Cancelar
+                  </Button>
+                  <Button onClick={() => save.mutate()} disabled={save.isPending || !dirty}>
+                    Salvar alterações
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
         </SheetContent>
       </Sheet>
+
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-display">Excluir equipamento?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {title} · série {asset?.serial_number ?? "—"}. O histórico de vínculos, termos e
+              documentos deste equipamento também serão apagados. Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                remove.mutate();
+              }}
+              disabled={remove.isPending}
+            >
+              Excluir definitivamente
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={assignOpen} onOpenChange={setAssignOpen}>
         <DialogContent className="sm:max-w-lg">
