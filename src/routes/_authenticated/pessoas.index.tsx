@@ -324,11 +324,24 @@ function Pessoas() {
                     aria-label="Selecionar todos"
                   />
                 </TableHead>
-                <TableHead>Colaborador</TableHead>
-                <TableHead>Área / Cargo</TableHead>
-                <TableHead>Unidade</TableHead>
-                <TableHead>Equipamentos em uso</TableHead>
-                <TableHead>Situação</TableHead>
+                {(
+                  [
+                    ["colaborador", "Colaborador"],
+                    ["area", "Área / Cargo"],
+                    ["unidade", "Unidade"],
+                    ["equipamentos", "Equipamentos em uso"],
+                    ["situacao", "Situação"],
+                  ] as const
+                ).map(([columnKey, label]) => (
+                  <SortableHead
+                    key={columnKey}
+                    columnKey={columnKey}
+                    label={label}
+                    sortKey={table.sortKey}
+                    sortDir={table.sortDir}
+                    onToggle={table.toggleSort}
+                  />
+                ))}
                 <TableHead className="w-10" />
               </TableRow>
             </TableHeader>
@@ -362,7 +375,7 @@ function Pessoas() {
                   </TableCell>
                 </TableRow>
               )}
-              {filtered.map((e, index) => {
+              {pageRows.map((e, index) => {
                 const selected = selectedId === e.id;
                 return (
                   <TableRow
@@ -430,6 +443,18 @@ function Pessoas() {
             </TableBody>
           </Table>
         </div>
+        <TablePagination
+          className="-mx-4 mt-3 px-4"
+          noun="colaboradores"
+          total={table.total}
+          rangeStart={table.rangeStart}
+          rangeEnd={table.rangeEnd}
+          page={table.page}
+          pageCount={table.pageCount}
+          pageSize={table.pageSize}
+          onPageChange={table.setPage}
+          onPageSizeChange={table.setPageSize}
+        />
       </Card>
 
       <BulkActionBar
