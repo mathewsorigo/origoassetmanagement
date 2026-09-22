@@ -112,7 +112,14 @@ export function AuthScreen() {
   }, [navigate]);
 
   useEffect(() => {
-    if (!loading && session) goToApp();
+    if (loading || !session) return;
+    goToApp();
+    // Rede de segurança: se a navegação interna não acontecer (ex.: retorno do
+    // login com tokens no endereço), força a entrada no painel.
+    const fallback = window.setTimeout(() => {
+      if (window.location.pathname === "/") window.location.replace("/painel");
+    }, 2500);
+    return () => window.clearTimeout(fallback);
   }, [loading, session, goToApp]);
 
 
@@ -129,6 +136,16 @@ export function AuthScreen() {
     if (result.redirected) return;
     goToApp();
   }
+
+  if (loading || session) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-white">
+        <Loader2 className="size-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+
 
 
   return (
