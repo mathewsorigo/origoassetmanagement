@@ -8,6 +8,7 @@ import {
   ExternalLink,
   FileSignature,
   Pencil,
+  Tags,
   Trash2,
   Undo2,
   UserPlus,
@@ -18,6 +19,9 @@ import { AssetIcon, SourceBadge } from "@/components/asset-visual";
 import { StatusBadge } from "@/components/status-badge";
 import { DocumentsPanel } from "@/components/documents-panel";
 import { DetailField, DetailSection } from "@/components/detail-field";
+import { TagBadge } from "@/components/tag-badge";
+import { TagPicker } from "@/components/tag-picker";
+import { useAssetTags } from "@/lib/tags";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -111,6 +115,7 @@ export function AssetDetailPanel({
   const [assignOpen, setAssignOpen] = useState(false);
   const [returnOpen, setReturnOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [tagsOpen, setTagsOpen] = useState(false);
   const [returnCondition, setReturnCondition] = useState("");
   const [assignForm, setAssignForm] = useState({
     employee_id: "",
@@ -145,6 +150,25 @@ export function AssetDetailPanel({
         .select("*, employee:employees(id,full_name,email), agreements(id,status,signed_at)")
         .eq("asset_id", assetId!)
         .order("assigned_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: assetTagMap } = useAssetTags();
+  const tags = assetId ? (assetTagMap?.get(assetId) ?? []) : [];
+
+  const { data: activity } = useQuery({
+    queryKey: ["asset-activity", assetId],
+    enabled: open,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("audit_log")
+        .select("id,action,details,created_at,actor:profiles(full_name,email)")
+        .eq("entity", "assets")
+        .eq("entity_id", assetId!)
+        .order("created_at", { ascending: false })
+        .limit(50);
       if (error) throw error;
       return data;
     },
@@ -422,6 +446,30 @@ export function AssetDetailPanel({
                     {asset?.supplier && <Badge variant="secondary">{asset.supplier}</Badge>}
                     <SourceBadge intuneDeviceId={asset?.intune_device_id} />
                   </div>
+
+                  <div className="mt-4 w-full rounded-xl border bg-card/70 p-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[0.7rem] font-semibold uppercase tracking-wide text-muted-foreground">
+                        Etiquetas
+                      </p>
+                      {canEdit && (
+                        <button
+                          type="button"
+                          className="text-xs text-primary underline-offset-4 hover:underline"
+                          onClick={() => setTagsOpen(true)}
+                        >
+                          editar
+                        </button>
+                      )}
+                    </div>
+                    <div className="mt-2 flex flex-wrap justify-center gap-1">
+                      {tags.length === 0 ? (
+                        <span className="text-xs text-muted-foreground">Sem etiquetas</span>
+                      ) : (
+                        tags.map((tag) => <TagBadge key={tag.id} tag={tag} />)
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 {canEdit && (
@@ -534,6 +582,7 @@ export function AssetDetailPanel({
                     <TabsTrigger value="detalhes">Detalhes</TabsTrigger>
                     <TabsTrigger value="uso">Uso</TabsTrigger>
                     <TabsTrigger value="documentos">Documentos</TabsTrigger>
+                    <TabsTrigger value="atividade">Atividade</TabsTrigger>
                   </TabsList>
 
                   <TabsContent value="detalhes" className="mt-5 space-y-4 animate-in fade-in-50">
@@ -738,6 +787,32 @@ export function AssetDetailPanel({
                   <TabsContent value="documentos" className="mt-5 animate-in fade-in-50">
                     {assetId && <DocumentsPanel filter={{ assetId }} />}
                   </TabsContent>
+
+                  <TabsContent value="atividade" className="mt-5 animate-in fade-in-50">
+                    <div className="space-y-2">
+                      {(activity ?? []).length === 0 && (
+                        <p className="text-sm text-muted-foreground">
+                          Nenhuma alteração registrada para este equipamento.
+                        </p>
+                      )}
+                      {(activity ?? []).map((item) => {
+                        const actor = item.actor as { full_name: string | null; email: string } | null;
+                        return (
+                          <div key={item.id} className="rounded-lg border p-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <p className="text-sm font-medium capitalize">{item.action}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {formatDateTime(item.created_at)}
+                              </p>
+                            </div>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {actor?.full_name || actor?.email || "Sistema"}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </TabsContent>
                 </Tabs>
               </div>
             </div>
@@ -868,6 +943,12 @@ export function AssetDetailPanel({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <TagPicker
+        assetIds={assetId ? [assetId] : []}
+        open={tagsOpen}
+        onOpenChange={setTagsOpen}
+      />
     </>
   );
 }
