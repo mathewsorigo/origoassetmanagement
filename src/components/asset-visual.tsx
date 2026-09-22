@@ -20,7 +20,7 @@ export function AssetIcon({
 }: {
   type: string;
   model?: string | null | undefined;
-  className?: string;
+  className?: string | undefined;
   size?: "sm" | "lg";
 }) {
   const Icon = icons[type] ?? Package;

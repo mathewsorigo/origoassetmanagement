@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { AssetIcon, SourceBadge } from "@/components/asset-visual";
+import { modelImage } from "@/lib/model-images";
 import { StatusBadge } from "@/components/status-badge";
 import { DocumentsPanel } from "@/components/documents-panel";
 import { DetailField, DetailSection } from "@/components/detail-field";
