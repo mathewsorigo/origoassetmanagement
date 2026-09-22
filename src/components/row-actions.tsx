@@ -1,20 +1,29 @@
-import { MoreVertical, Pencil, Trash2 } from "lucide-react";
+import { MoreVertical, Pencil, Trash2, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+
+export type RowExtraAction = {
+  label: string;
+  icon?: LucideIcon;
+  onSelect: () => void;
+};
 
 export function RowActions({
   onEdit,
   onDelete,
   label = "Ações",
+  extra,
 }: {
   onEdit: () => void;
   onDelete: () => void;
   label?: string;
+  extra?: RowExtraAction[];
 }) {
   return (
     <DropdownMenu>
@@ -32,6 +41,18 @@ export function RowActions({
         >
           <Pencil className="mr-2 size-4" /> Editar
         </DropdownMenuItem>
+        {(extra ?? []).map((action) => (
+          <DropdownMenuItem
+            key={action.label}
+            onSelect={(e) => {
+              e.preventDefault();
+              action.onSelect();
+            }}
+          >
+            {action.icon && <action.icon className="mr-2 size-4" />} {action.label}
+          </DropdownMenuItem>
+        ))}
+        {(extra ?? []).length > 0 && <DropdownMenuSeparator />}
         <DropdownMenuItem
           className="text-destructive focus:text-destructive"
           onSelect={(e) => {
