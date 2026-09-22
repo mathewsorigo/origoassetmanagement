@@ -1,11 +1,14 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, X, PackageSearch } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { AssetIcon, SourceBadge } from "@/components/asset-visual";
+import { AssetDetailPanel } from "@/components/asset-detail-panel";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -83,6 +86,7 @@ function Ativos() {
   const [typeFilter, setTypeFilter] = useState("todos");
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ ...emptyForm });
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const { data: assets, isLoading } = useQuery({
     queryKey: ["assets"],
@@ -234,7 +238,37 @@ function Ativos() {
           </Select>
         </div>
 
-        <div className="mt-4 overflow-x-auto">
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted-foreground">
+            {filtered.length} {filtered.length === 1 ? "equipamento" : "equipamentos"}
+          </span>
+          {typeFilter !== "todos" && (
+            <button
+              className="inline-flex items-center gap-1 rounded-full border bg-primary/10 px-2.5 py-0.5 text-xs text-primary transition-colors hover:bg-primary/20"
+              onClick={() => setTypeFilter("todos")}
+            >
+              {assetTypeLabel[typeFilter]} <X className="size-3" />
+            </button>
+          )}
+          {statusFilter !== "todos" && (
+            <button
+              className="inline-flex items-center gap-1 rounded-full border bg-primary/10 px-2.5 py-0.5 text-xs text-primary transition-colors hover:bg-primary/20"
+              onClick={() => setStatusFilter("todos")}
+            >
+              {assetStatusLabel[statusFilter]} <X className="size-3" />
+            </button>
+          )}
+          {term && (
+            <button
+              className="inline-flex items-center gap-1 rounded-full border bg-primary/10 px-2.5 py-0.5 text-xs text-primary transition-colors hover:bg-primary/20"
+              onClick={() => setTerm("")}
+            >
+              “{term}” <X className="size-3" />
+            </button>
+          )}
+        </div>
+
+        <div className="mt-3 overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -246,35 +280,60 @@ function Ativos() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading && (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground">
-                    Carregando…
-                  </TableCell>
-                </TableRow>
-              )}
+              {isLoading &&
+                Array.from({ length: 5 }).map((_, i) => (
+                  <TableRow key={`s-${i}`}>
+                    {Array.from({ length: 5 }).map((__, j) => (
+                      <TableCell key={j}>
+                        <Skeleton className="h-4 w-full max-w-40" />
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
               {!isLoading && filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground">
-                    Nenhum ativo encontrado.
+                  <TableCell colSpan={5} className="py-12">
+                    <div className="flex flex-col items-center gap-3 text-center">
+                      <span className="flex size-14 items-center justify-center rounded-2xl border border-dashed border-primary/30 bg-primary/5 text-primary">
+                        <PackageSearch className="size-6" />
+                      </span>
+                      <div>
+                        <p className="font-display text-sm font-semibold">
+                          Nenhum equipamento encontrado
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Ajuste os filtros ou cadastre um novo ativo.
+                        </p>
+                      </div>
+                    </div>
                   </TableCell>
                 </TableRow>
               )}
-              {filtered.map((a) => {
+              {filtered.map((a, index) => {
                 const holder = holderOf(a);
+                const selected = selectedId === a.id;
                 return (
-                  <TableRow key={a.id}>
+                  <TableRow
+                    key={a.id}
+                    onClick={() => setSelectedId(a.id)}
+                    style={{ animationDelay: `${Math.min(index, 12) * 25}ms` }}
+                    className={cn(
+                      "cursor-pointer animate-in fade-in-0 slide-in-from-bottom-1 transition-colors",
+                      selected && "bg-primary/[0.07] hover:bg-primary/10",
+                    )}
+                  >
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <AssetIcon type={a.asset_type} />
                         <div className="min-w-0">
-                          <Link
-                            to="/ativos/$id"
-                            params={{ id: a.id }}
-                            className="font-medium text-foreground hover:text-primary hover:underline"
+                          <p
+                            className={cn(
+                              "font-medium text-foreground transition-colors",
+                              selected && "text-primary",
+                            )}
                           >
                             {`${a.brand ?? ""} ${a.model ?? ""}`.trim() || a.serial_number}
-                          </Link>
+                          </p>
                           <p className="text-xs text-muted-foreground">
                             {assetTypeLabel[a.asset_type]} · Série {a.serial_number}
                             {a.patrimony ? ` · Pat. ${a.patrimony}` : ""}
@@ -284,13 +343,7 @@ function Ativos() {
                     </TableCell>
                     <TableCell className="text-sm">
                       {holder ? (
-                        <Link
-                          to="/pessoas/$id"
-                          params={{ id: holder.id }}
-                          className="hover:text-primary hover:underline"
-                        >
-                          {holder.full_name}
-                        </Link>
+                        holder.full_name
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}
@@ -312,6 +365,17 @@ function Ativos() {
           </Table>
         </div>
       </Card>
+
+      <AssetDetailPanel
+        assetId={selectedId}
+        onOpenChange={(v) => !v && setSelectedId(null)}
+        onNavigate={(dir) => {
+          const i = filtered.findIndex((a) => a.id === selectedId);
+          if (i < 0) return;
+          const next = filtered[i + dir];
+          if (next) setSelectedId(next.id);
+        }}
+      />
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
