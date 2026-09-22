@@ -3,7 +3,7 @@ import { takePendingQr } from "@/lib/pending-qr";
 import { readAuthErrorFromUrl, takeAuthNotice } from "@/lib/auth-notice";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { Loader2, ShieldCheck, FileSignature, QrCode, Monitor } from "lucide-react";
+import { Loader2, ShieldCheck, ShieldAlert, FileSignature, QrCode, Monitor } from "lucide-react";
 import { OrigoLogo } from "@/components/brand-logo";
 import { Button } from "@/components/ui/button";
 
