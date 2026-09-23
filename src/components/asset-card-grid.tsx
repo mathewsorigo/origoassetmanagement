@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { AssetIcon, SourceBadge } from "@/components/asset-visual";
+import { BitdefenderStatus } from "@/components/bitdefender-status";
 import { StatusBadge } from "@/components/status-badge";
 import { TagBadge } from "@/components/tag-badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -18,6 +19,9 @@ export type AssetCardItem = {
   supplier?: string | null;
   lease_end?: string | null;
   intune_device_id?: string | null;
+  intune_last_sync?: string | null;
+  last_seen_location?: string | null;
+  bitdefender_installed?: boolean | null;
 };
 
 export function AssetCardGrid({
@@ -72,6 +76,7 @@ export function AssetCardGrid({
                 <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                   <StatusBadge value={a.status} />
                   <SourceBadge intuneDeviceId={a.intune_device_id} />
+                  <BitdefenderStatus installed={a.bitdefender_installed} />
                 </div>
               </div>
               <span onClick={(e) => e.stopPropagation()}>{actions?.(a)}</span>
@@ -86,9 +91,9 @@ export function AssetCardGrid({
               </div>
               <div className="min-w-0">
                 <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                  Localidade
+                  Última localidade vista
                 </dt>
-                <dd className="truncate">{a.location || "—"}</dd>
+                <dd className="truncate">{a.last_seen_location || "—"}</dd>
               </div>
               <div className="min-w-0">
                 <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">
