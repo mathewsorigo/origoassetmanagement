@@ -67,16 +67,18 @@ export function AssetCardGrid({
               </span>
               <AssetIcon type={a.asset_type} model={a.model} size="lg" />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">
-                  {`${a.brand ?? ""} ${a.model ?? ""}`.trim() || a.serial_number}
-                </p>
+                <div className="flex min-w-0 items-center gap-1.5">
+                  <p className="truncate text-sm font-medium">
+                    {`${a.brand ?? ""} ${a.model ?? ""}`.trim() || a.serial_number}
+                  </p>
+                  <BitdefenderStatus installed={a.bitdefender_installed} />
+                </div>
                 <p className="num truncate text-xs text-muted-foreground">
                   {assetTypeLabel[a.asset_type] ?? a.asset_type} · {a.serial_number}
                 </p>
                 <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                   <StatusBadge value={a.status} />
                   <SourceBadge intuneDeviceId={a.intune_device_id} />
-                  <BitdefenderStatus installed={a.bitdefender_installed} />
                 </div>
               </div>
               <span onClick={(e) => e.stopPropagation()}>{actions?.(a)}</span>

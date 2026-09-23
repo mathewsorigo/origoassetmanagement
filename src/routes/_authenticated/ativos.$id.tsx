@@ -234,13 +234,15 @@ function AtivoDetalhe() {
       <div className="mb-5 flex flex-wrap items-start gap-4 rounded-xl border bg-card p-5">
         <AssetIcon type={asset?.asset_type ?? "outro"} model={asset?.model} size="lg" />
         <div className="min-w-0 flex-1">
-          <h1 className="font-display text-2xl font-semibold tracking-tight">{title}</h1>
+          <div className="flex min-w-0 items-center gap-2">
+            <h1 className="truncate font-display text-2xl font-semibold tracking-tight">{title}</h1>
+            <BitdefenderStatus installed={asset?.bitdefender_installed} className="[&>svg]:size-5" />
+          </div>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             {asset && <StatusBadge value={asset.status} />}
             <Badge variant="outline">{assetTypeLabel[asset?.asset_type ?? ""] ?? "—"}</Badge>
             {asset?.supplier && <Badge variant="secondary">{asset.supplier}</Badge>}
             <SourceBadge intuneDeviceId={asset?.intune_device_id} />
-            <BitdefenderStatus installed={asset?.bitdefender_installed} withLabel />
           </div>
           <p className="mt-2 text-sm text-muted-foreground">
             Série {asset?.serial_number ?? "—"}
