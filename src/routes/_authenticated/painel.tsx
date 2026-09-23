@@ -35,7 +35,7 @@ export const Route = createFileRoute("/_authenticated/painel")({
       { title: "Painel · Órigo Ativos" },
       {
         name: "description",
-        content: "Visão geral dos equipamentos, vínculos e termos pendentes de assinatura.",
+        content: "Visão geral dos equipamentos, vínculos e distribuição por localidade.",
       },
       { property: "og:title", content: "Painel · Órigo Ativos" },
       { property: "og:description", content: "Visão geral do inventário de TI da Órigo Energia." },
