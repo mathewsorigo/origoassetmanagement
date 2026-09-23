@@ -60,7 +60,7 @@ async function audit(ctx: Ctx, action: string, entity: string, entityId: string 
 }
 
 // ---------- validação de mapeamentos (sem gravar) ----------
-type PlanItem = { index: number; result: string; [k: string]: any };
+type PlanItem = { index: number; result: string; type: string; asset_id?: string; employee_id?: string; intune_device_id?: string | null; entra_user_id?: string | null; before?: any; error?: string };
 async function planMappings(db: Db, items: z.infer<typeof mappingItem>[]): Promise<PlanItem[]> {
   return Promise.all(
     items.map(async (it, index) => {
