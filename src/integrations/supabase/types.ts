@@ -558,6 +558,7 @@ export type Database = {
           created_at: string
           department: string | null
           email: string
+          entra_user_id: string | null
           full_name: string
           id: string
           intune_id: string | null
@@ -575,6 +576,7 @@ export type Database = {
           created_at?: string
           department?: string | null
           email: string
+          entra_user_id?: string | null
           full_name: string
           id?: string
           intune_id?: string | null
@@ -592,6 +594,7 @@ export type Database = {
           created_at?: string
           department?: string | null
           email?: string
+          entra_user_id?: string | null
           full_name?: string
           id?: string
           intune_id?: string | null
@@ -603,6 +606,60 @@ export type Database = {
           unit?: string | null
           updated_at?: string
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      hermes_operations: {
+        Row: {
+          after_state: Json | null
+          batch_id: string | null
+          before_state: Json | null
+          correlation_id: string
+          created_at: string
+          created_by: string | null
+          entity: string
+          entity_id: string | null
+          id: string
+          idempotency_key: string
+          operation: string
+          request_hash: string
+          response: Json | null
+          reverted_at: string | null
+          status_code: number
+        }
+        Insert: {
+          after_state?: Json | null
+          batch_id?: string | null
+          before_state?: Json | null
+          correlation_id: string
+          created_at?: string
+          created_by?: string | null
+          entity: string
+          entity_id?: string | null
+          id?: string
+          idempotency_key: string
+          operation: string
+          request_hash: string
+          response?: Json | null
+          reverted_at?: string | null
+          status_code?: number
+        }
+        Update: {
+          after_state?: Json | null
+          batch_id?: string | null
+          before_state?: Json | null
+          correlation_id?: string
+          created_at?: string
+          created_by?: string | null
+          entity?: string
+          entity_id?: string | null
+          id?: string
+          idempotency_key?: string
+          operation?: string
+          request_hash?: string
+          response?: Json | null
+          reverted_at?: string | null
+          status_code?: number
         }
         Relationships: []
       }
