@@ -108,10 +108,10 @@ export function AssetLocationMap({
   }, [data, withoutLocation]);
   const max = Math.max(1, ...located.map((item) => item.total));
 
-  // geoEqualEarth's globe has a ~2.05:1 width-to-height ratio. Size the
-  // container height to match so the globe fills it without empty space.
+  // The container stretches with the card; the projection fits and centers
+  // the globe inside whatever space it gets.
   const width = size.width || 800;
-  const height = size.width > 0 ? Math.round(width / 2.05) : 320;
+  const height = size.height > 0 ? size.height : Math.round(width / 2.05);
 
   const projection = useMemo(() => {
     return geoEqualEarth().fitExtent(
