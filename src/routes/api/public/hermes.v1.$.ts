@@ -154,7 +154,7 @@ async function applyMappings(ctx: Ctx) {
     if (p.result !== "update") { results.push(p); continue; }
     const isAsset = p.type === "asset_intune";
     const table = isAsset ? "assets" : "employees";
-    const id = isAsset ? p.asset_id : p.employee_id;
+    const id = (isAsset ? p.asset_id : p.employee_id)!;
     const after = isAsset ? { intune_device_id: p.intune_device_id } : { entra_user_id: p.entra_user_id };
     const { error } = await ctx.db.from(table).update(after).eq("id", id);
     if (error) { results.push({ ...p, result: "error", error: "update_failed" }); continue; }
