@@ -304,7 +304,7 @@ function Ativos() {
     });
   }
 
-  function holderOf(asset: (typeof filtered)[number]) {
+  function holderOf(asset: NonNullable<typeof assets>[number]) {
     const active = (asset.assignments as Array<{
       status: string;
       employee: { id: string; full_name: string } | null;
