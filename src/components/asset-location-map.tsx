@@ -108,12 +108,21 @@ export function AssetLocationMap({
   }, [data, withoutLocation]);
   const max = Math.max(1, ...located.map((item) => item.total));
 
-  // Scale the projection to fill the container width. The geoEqualEarth
-  // projection roughly spans ~2.5x its scale factor in width, so we tune
-  // the scale so the globe fills the available width while keeping height.
   const width = size.width || 800;
   const height = size.height || 320;
-  const scale = Math.min(width / 5.6, height / 2.8);
+
+  // Use a custom projection with fitExtent so the globe always fills the
+  // container exactly, regardless of its aspect ratio.
+  const projection = useMemo(() => {
+    const padding = 6;
+    return geoEqualEarth().fitExtent(
+      [
+        [padding, padding],
+        [width - padding, height - padding],
+      ],
+      { type: "Sphere" },
+    );
+  }, [width, height]);
 
   return (
     <div>
@@ -125,8 +134,7 @@ export function AssetLocationMap({
           <ComposableMap
             width={width}
             height={height}
-            projection="geoEqualEarth"
-            projectionConfig={{ scale }}
+            projection={projection}
             className="h-full w-full"
             aria-label="Mapa mundial com a distribuição dos equipamentos"
           >
