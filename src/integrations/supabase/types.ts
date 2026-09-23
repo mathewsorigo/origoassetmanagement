@@ -146,6 +146,7 @@ export type Database = {
           employee_id: string
           external_envelope_id: string | null
           id: string
+          is_test: boolean
           provider: string
           sent_at: string | null
           signed_at: string | null
@@ -164,6 +165,7 @@ export type Database = {
           employee_id: string
           external_envelope_id?: string | null
           id?: string
+          is_test?: boolean
           provider?: string
           sent_at?: string | null
           signed_at?: string | null
@@ -182,6 +184,7 @@ export type Database = {
           employee_id?: string
           external_envelope_id?: string | null
           id?: string
+          is_test?: boolean
           provider?: string
           sent_at?: string | null
           signed_at?: string | null
@@ -284,6 +287,7 @@ export type Database = {
           imei: string | null
           intune_device_id: string | null
           intune_last_sync: string | null
+          is_test: boolean
           lease_end: string | null
           lease_start: string | null
           location: string | null
@@ -306,6 +310,7 @@ export type Database = {
           imei?: string | null
           intune_device_id?: string | null
           intune_last_sync?: string | null
+          is_test?: boolean
           lease_end?: string | null
           lease_start?: string | null
           location?: string | null
@@ -328,6 +333,7 @@ export type Database = {
           imei?: string | null
           intune_device_id?: string | null
           intune_last_sync?: string | null
+          is_test?: boolean
           lease_end?: string | null
           lease_start?: string | null
           location?: string | null
@@ -389,6 +395,7 @@ export type Database = {
           delivery_condition: string | null
           employee_id: string
           id: string
+          is_test: boolean
           notes: string | null
           return_condition: string | null
           returned_at: string | null
@@ -403,6 +410,7 @@ export type Database = {
           delivery_condition?: string | null
           employee_id: string
           id?: string
+          is_test?: boolean
           notes?: string | null
           return_condition?: string | null
           returned_at?: string | null
@@ -417,6 +425,7 @@ export type Database = {
           delivery_condition?: string | null
           employee_id?: string
           id?: string
+          is_test?: boolean
           notes?: string | null
           return_condition?: string | null
           returned_at?: string | null
@@ -478,18 +487,21 @@ export type Database = {
           active: boolean
           created_at: string
           id: string
+          is_test: boolean
           name: string
         }
         Insert: {
           active?: boolean
           created_at?: string
           id?: string
+          is_test?: boolean
           name: string
         }
         Update: {
           active?: boolean
           created_at?: string
           id?: string
+          is_test?: boolean
           name?: string
         }
         Relationships: []
@@ -502,6 +514,7 @@ export type Database = {
           employee_id: string | null
           file_name: string
           id: string
+          is_test: boolean
           kind: string
           storage_path: string
           uploaded_by: string | null
@@ -513,6 +526,7 @@ export type Database = {
           employee_id?: string | null
           file_name: string
           id?: string
+          is_test?: boolean
           kind?: string
           storage_path: string
           uploaded_by?: string | null
@@ -524,6 +538,7 @@ export type Database = {
           employee_id?: string | null
           file_name?: string
           id?: string
+          is_test?: boolean
           kind?: string
           storage_path?: string
           uploaded_by?: string | null
@@ -562,6 +577,7 @@ export type Database = {
           full_name: string
           id: string
           intune_id: string | null
+          is_test: boolean
           job_title: string | null
           manager_name: string | null
           notes: string | null
@@ -580,6 +596,7 @@ export type Database = {
           full_name: string
           id?: string
           intune_id?: string | null
+          is_test?: boolean
           job_title?: string | null
           manager_name?: string | null
           notes?: string | null
@@ -598,6 +615,7 @@ export type Database = {
           full_name?: string
           id?: string
           intune_id?: string | null
+          is_test?: boolean
           job_title?: string | null
           manager_name?: string | null
           notes?: string | null
@@ -660,6 +678,36 @@ export type Database = {
           response?: Json | null
           reverted_at?: string | null
           status_code?: number
+        }
+        Relationships: []
+      }
+      hermes_request_log: {
+        Row: {
+          correlation_id: string | null
+          created_at: string
+          id: string
+          method: string
+          path: string
+          status_code: number | null
+          user_agent: string | null
+        }
+        Insert: {
+          correlation_id?: string | null
+          created_at?: string
+          id?: string
+          method: string
+          path: string
+          status_code?: number | null
+          user_agent?: string | null
+        }
+        Update: {
+          correlation_id?: string | null
+          created_at?: string
+          id?: string
+          method?: string
+          path?: string
+          status_code?: number | null
+          user_agent?: string | null
         }
         Relationships: []
       }
@@ -851,6 +899,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           id: string
+          is_test: boolean
           name: string
           scope: Json
           status: string
@@ -861,6 +910,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          is_test?: boolean
           name: string
           scope?: Json
           status?: string
@@ -871,6 +921,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          is_test?: boolean
           name?: string
           scope?: Json
           status?: string
@@ -883,18 +934,21 @@ export type Database = {
           active: boolean
           created_at: string
           id: string
+          is_test: boolean
           name: string
         }
         Insert: {
           active?: boolean
           created_at?: string
           id?: string
+          is_test?: boolean
           name: string
         }
         Update: {
           active?: boolean
           created_at?: string
           id?: string
+          is_test?: boolean
           name?: string
         }
         Relationships: []
@@ -946,18 +1000,21 @@ export type Database = {
           color: string
           created_at: string
           id: string
+          is_test: boolean
           name: string
         }
         Insert: {
           color?: string
           created_at?: string
           id?: string
+          is_test?: boolean
           name: string
         }
         Update: {
           color?: string
           created_at?: string
           id?: string
+          is_test?: boolean
           name?: string
         }
         Relationships: []
@@ -988,18 +1045,21 @@ export type Database = {
           active: boolean
           created_at: string
           id: string
+          is_test: boolean
           name: string
         }
         Insert: {
           active?: boolean
           created_at?: string
           id?: string
+          is_test?: boolean
           name: string
         }
         Update: {
           active?: boolean
           created_at?: string
           id?: string
+          is_test?: boolean
           name?: string
         }
         Relationships: []
