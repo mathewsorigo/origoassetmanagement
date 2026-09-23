@@ -47,6 +47,7 @@ import { useProfile, useRoles, useSession, isManager, isOperator, isAdmin } from
 import { roleLabel } from "@/lib/format";
 import { rememberPendingQr } from "@/lib/pending-qr";
 import { setAuthNotice } from "@/lib/auth-notice";
+import { RealtimeSync } from "@/components/realtime-sync";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -169,11 +170,12 @@ function AuthenticatedLayout() {
     .join("");
 
   return (
-    <div className="min-h-screen bg-background lg:flex">
+    <div className="flex h-dvh overflow-hidden bg-background">
+      <RealtimeSync />
       {/* Trilha de ícones */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 flex w-[92px] shrink-0 flex-col bg-sidebar text-sidebar-foreground shadow-[var(--shadow-elevated)] transition-transform duration-300 lg:static lg:translate-x-0 lg:shadow-none",
+          "fixed inset-y-0 left-0 z-40 flex w-[92px] shrink-0 flex-col bg-sidebar text-sidebar-foreground shadow-[var(--shadow-elevated)] transition-transform duration-300 lg:relative lg:translate-x-0 lg:shadow-none",
           open ? "translate-x-0" : "-translate-x-full",
         )}
       >
@@ -223,9 +225,9 @@ function AuthenticatedLayout() {
         />
       )}
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {/* Barra superior */}
-        <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b bg-card/90 px-4 backdrop-blur sm:px-6">
+        <header className="z-20 flex h-16 shrink-0 items-center gap-3 border-b bg-card/90 px-4 backdrop-blur sm:px-6">
           <Button
             variant="ghost"
             size="icon"
@@ -310,7 +312,7 @@ function AuthenticatedLayout() {
           </div>
         </header>
 
-        <main className="min-w-0 flex-1 p-4 sm:p-6 lg:p-8">
+        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <Outlet />
         </main>
       </div>
