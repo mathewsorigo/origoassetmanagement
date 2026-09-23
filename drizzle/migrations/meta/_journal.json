@@ -78,6 +78,13 @@
       "when": 1790186557827,
       "tag": "0010_add_asset_presence_and_security_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1790186653727,
+      "tag": "0011_enable_realtime_for_management_tables",
+      "breakpoints": true
     }
   ]
 }
