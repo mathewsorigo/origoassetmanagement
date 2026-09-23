@@ -31,6 +31,7 @@ import { Route as AuthenticatedPessoasIndexRouteImport } from './routes/_authent
 import { Route as AuthenticatedPessoasIdRouteImport } from './routes/_authenticated/pessoas.$id'
 import { Route as AuthenticatedQrAssetIdRouteImport } from './routes/_authenticated/qr.$assetId'
 import { Route as ApiPublicHermesAssinaturaRouteImport } from './routes/api/public/hermes.assinatura'
+import { Route as ApiPublicHermesV1SplatRouteImport } from './routes/api/public/hermes.v1.$'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -148,6 +149,11 @@ const ApiPublicHermesAssinaturaRoute =
     path: '/api/public/hermes/assinatura',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHermesV1SplatRoute = ApiPublicHermesV1SplatRouteImport.update({
+  id: '/api/public/hermes/v1/$',
+  path: '/api/public/hermes/v1/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -171,6 +177,7 @@ export interface FileRoutesByFullPath {
   '/ativos/': typeof AuthenticatedAtivosIndexRoute
   '/pessoas/': typeof AuthenticatedPessoasIndexRoute
   '/api/public/hermes/assinatura': typeof ApiPublicHermesAssinaturaRoute
+  '/api/public/hermes/v1/$': typeof ApiPublicHermesV1SplatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -194,6 +201,7 @@ export interface FileRoutesByTo {
   '/ativos': typeof AuthenticatedAtivosIndexRoute
   '/pessoas': typeof AuthenticatedPessoasIndexRoute
   '/api/public/hermes/assinatura': typeof ApiPublicHermesAssinaturaRoute
+  '/api/public/hermes/v1/$': typeof ApiPublicHermesV1SplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -219,6 +227,7 @@ export interface FileRoutesById {
   '/_authenticated/ativos/': typeof AuthenticatedAtivosIndexRoute
   '/_authenticated/pessoas/': typeof AuthenticatedPessoasIndexRoute
   '/api/public/hermes/assinatura': typeof ApiPublicHermesAssinaturaRoute
+  '/api/public/hermes/v1/$': typeof ApiPublicHermesV1SplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -244,6 +253,7 @@ export interface FileRouteTypes {
     | '/ativos/'
     | '/pessoas/'
     | '/api/public/hermes/assinatura'
+    | '/api/public/hermes/v1/$'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -267,6 +277,7 @@ export interface FileRouteTypes {
     | '/ativos'
     | '/pessoas'
     | '/api/public/hermes/assinatura'
+    | '/api/public/hermes/v1/$'
   id:
     | '__root__'
     | '/'
@@ -291,6 +302,7 @@ export interface FileRouteTypes {
     | '/_authenticated/ativos/'
     | '/_authenticated/pessoas/'
     | '/api/public/hermes/assinatura'
+    | '/api/public/hermes/v1/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -300,6 +312,7 @@ export interface RootRouteChildren {
   DefinirSenhaRoute: typeof DefinirSenhaRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   ApiPublicHermesAssinaturaRoute: typeof ApiPublicHermesAssinaturaRoute
+  ApiPublicHermesV1SplatRoute: typeof ApiPublicHermesV1SplatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -458,6 +471,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHermesAssinaturaRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hermes/v1/$': {
+      id: '/api/public/hermes/v1/$'
+      path: '/api/public/hermes/v1/$'
+      fullPath: '/api/public/hermes/v1/$'
+      preLoaderRoute: typeof ApiPublicHermesV1SplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -523,6 +543,7 @@ const rootRouteChildren: RootRouteChildren = {
   DefinirSenhaRoute: DefinirSenhaRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   ApiPublicHermesAssinaturaRoute: ApiPublicHermesAssinaturaRoute,
+  ApiPublicHermesV1SplatRoute: ApiPublicHermesV1SplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

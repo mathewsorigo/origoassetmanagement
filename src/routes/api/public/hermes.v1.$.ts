@@ -60,7 +60,8 @@ async function audit(ctx: Ctx, action: string, entity: string, entityId: string 
 }
 
 // ---------- validação de mapeamentos (sem gravar) ----------
-async function planMappings(db: Db, items: z.infer<typeof mappingItem>[]) {
+type PlanItem = { index: number; result: string; [k: string]: any };
+async function planMappings(db: Db, items: z.infer<typeof mappingItem>[]): Promise<PlanItem[]> {
   return Promise.all(
     items.map(async (it, index) => {
       if (it.type === "asset_intune") {
@@ -148,7 +149,7 @@ async function applyMappings(ctx: Ctx) {
   if (prior) return prior;
 
   const plan = await planMappings(ctx.db, parsed.data.items);
-  const results = [];
+  const results: any[] = [];
   for (const p of plan) {
     if (p.result !== "update") { results.push(p); continue; }
     const isAsset = p.type === "asset_intune";
@@ -239,7 +240,7 @@ async function revertBatch(ctx: Ctx, batchId: string) {
     .eq("batch_id", batchId).is("reverted_at", null).neq("entity", "batch").neq("operation", "revert").order("created_at", { ascending: false });
   if (!ops || ops.length === 0) return apiError(404, "nothing_to_revert", "Nenhuma alteração pendente de reversão neste lote.");
 
-  const results = [];
+  const results: any[] = [];
   for (const op of ops) {
     let ok = false;
     if (op.operation === "asset_intune" || op.operation === "employee_entra") {
@@ -275,14 +276,14 @@ async function dispatch(request: Request, splat: string) {
   const m = request.method;
   try {
     if (m === "GET" && parts.length === 1 && parts[0] === "assets") return await listAssets(ctx);
-    if (m === "GET" && parts.length === 3 && parts[0] === "assets" && parts[2] === "assignments") return await assetAssignments(ctx, parts[1]);
+    if (m === "GET" && parts.length === 3 && parts[0] === "assets" && parts[2] === "assignments") return await assetAssignments(ctx, parts[1]!);
     if (m === "GET" && parts.length === 1 && parts[0] === "employees") return await listEmployees(ctx);
-    if (m === "GET" && parts.length === 2 && parts[0] === "assignments") return await getAssignment(ctx, parts[1]);
+    if (m === "GET" && parts.length === 2 && parts[0] === "assignments") return await getAssignment(ctx, parts[1]!);
     if (m === "POST" && parts.length === 1 && parts[0] === "assignments") return await createAssignment(ctx);
     if (m === "POST" && parts.join("/") === "mappings/preview") return await previewMappings(ctx);
     if (m === "POST" && parts.length === 1 && parts[0] === "mappings") return await applyMappings(ctx);
     if (m === "GET" && parts.length === 1 && parts[0] === "operations") return await listOperations(ctx);
-    if (m === "POST" && parts.length === 3 && parts[0] === "batches" && parts[2] === "revert") return await revertBatch(ctx, parts[1]);
+    if (m === "POST" && parts.length === 3 && parts[0] === "batches" && parts[2] === "revert") return await revertBatch(ctx, parts[1]!);
     return apiError(404, "route_not_found", "Rota não encontrada.");
   } catch (e) {
     console.error("hermes-api", e);
