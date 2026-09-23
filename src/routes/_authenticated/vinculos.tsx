@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { Plus, Undo2 } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Plus, Search, Undo2, X } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
@@ -100,7 +100,18 @@ function Vinculos() {
     },
   });
 
-  const table = useTableState(assignments, {
+  const [nameQuery, setNameQuery] = useState("");
+  const normalizeName = (v: string) =>
+    v.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+  const filteredAssignments = useMemo(() => {
+    const q = normalizeName(nameQuery);
+    if (!q || !assignments) return assignments;
+    return assignments.filter((a) =>
+      normalizeName((a.employee as { full_name: string } | null)?.full_name ?? "").includes(q),
+    );
+  }, [assignments, nameQuery]);
+
+  const table = useTableState(filteredAssignments, {
     key: "vinculos",
     accessors: {
       colaborador: (a) => (a.employee as { full_name: string } | null)?.full_name ?? null,
@@ -261,14 +272,108 @@ function Vinculos() {
         description="Entregas e devoluções. Ao vincular, o termo de uso é preenchido automaticamente."
         actions={
           canEdit ? (
-            <Button onClick={() => setOpen(true)}>
+            <Button className="w-full sm:w-auto" onClick={() => setOpen(true)}>
               <Plus className="mr-2 size-4" /> Novo vínculo
             </Button>
           ) : undefined
         }
       />
 
-      <Card className="overflow-x-auto p-4">
+      <Card className="p-3 sm:p-4">
+        <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="relative w-full sm:max-w-sm">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={nameQuery}
+              onChange={(e) => {
+                setNameQuery(e.target.value);
+                table.setPage(1);
+              }}
+              placeholder="Buscar colaborador…"
+              aria-label="Buscar colaborador pelo nome"
+              className="h-10 pl-9 pr-9"
+            />
+            {nameQuery && (
+              <button
+                type="button"
+                onClick={() => setNameQuery("")}
+                aria-label="Limpar busca"
+                className="absolute right-2 top-1/2 grid size-7 -translate-y-1/2 place-items-center rounded text-muted-foreground hover:text-foreground"
+              >
+                <X className="size-4" />
+              </button>
+            )}
+          </div>
+          {nameQuery && (
+            <span className="text-xs text-muted-foreground">
+              {table.total} {table.total === 1 ? "vínculo encontrado" : "vínculos encontrados"}
+            </span>
+          )}
+        </div>
+
+        <ul className="divide-y md:hidden">
+          {isLoading && <li className="py-6 text-center text-sm text-muted-foreground">Carregando…</li>}
+          {!isLoading && table.total === 0 && (
+            <li className="py-6 text-center text-sm text-muted-foreground">
+              {nameQuery ? "Nenhum colaborador encontrado com esse nome." : "Nenhum vínculo registrado."}
+            </li>
+          )}
+          {table.pageRows.map((a) => {
+            const employee = a.employee as { id: string; full_name: string } | null;
+            const asset = a.asset as {
+              id: string;
+              serial_number: string;
+              brand: string | null;
+              model: string | null;
+            } | null;
+            const agreement = (a.agreements as Array<{ id: string; status: string }> | null)?.[0];
+            return (
+              <li key={a.id} className="min-w-0 space-y-2 py-3">
+                <div className="flex min-w-0 items-start justify-between gap-2">
+                  {employee ? (
+                    <Link
+                      to="/pessoas/$id"
+                      params={{ id: employee.id }}
+                      className="min-w-0 break-words font-medium hover:text-primary"
+                    >
+                      {employee.full_name}
+                    </Link>
+                  ) : (
+                    <span />
+                  )}
+                  <div className="shrink-0">
+                    <StatusBadge value={a.status} />
+                  </div>
+                </div>
+                {asset && (
+                  <Link
+                    to="/ativos/$id"
+                    params={{ id: asset.id }}
+                    className="block break-words text-sm text-muted-foreground hover:text-primary"
+                  >
+                    {asset.brand} {asset.model} · {asset.serial_number}
+                  </Link>
+                )}
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                  <span>Entrega: {formatDate(a.assigned_at)}</span>
+                  {a.returned_at && <span>Devolução: {formatDate(a.returned_at)}</span>}
+                  {agreement ? (
+                    <Link to="/termos"><StatusBadge value={agreement.status} /></Link>
+                  ) : (
+                    <span>sem termo</span>
+                  )}
+                </div>
+                {canEdit && a.status === "ativo" && (
+                  <Button variant="outline" size="sm" className="w-full" onClick={() => setReturnTarget(a.id)}>
+                    <Undo2 className="mr-2 size-4" /> Devolver
+                  </Button>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+
+        <div className="hidden overflow-x-auto md:block">
         <Table>
           <TableHeader>
             <TableRow>
@@ -376,6 +481,7 @@ function Vinculos() {
             })}
           </TableBody>
         </Table>
+        </div>
         <TablePagination
           className="-mx-4 mt-3 px-4"
           noun="vínculos"

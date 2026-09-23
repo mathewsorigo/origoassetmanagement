@@ -253,13 +253,13 @@ function BaixaPorQr() {
   const nome = `${asset.brand ?? ""} ${asset.model ?? ""}`.trim() || asset.serial_number;
 
   return (
-    <div className="mx-auto max-w-lg space-y-4 pb-10">
+    <div className="mx-auto w-full min-w-0 max-w-lg space-y-3 overflow-x-hidden pb-[calc(2.5rem+env(safe-area-inset-bottom))] sm:space-y-4">
       <Card>
         <CardContent className="flex items-start gap-3 pt-6">
           <AssetIcon type={asset.asset_type} model={asset.model} size="lg" />
           <div className="min-w-0 space-y-1.5">
-            <p className="truncate text-base font-semibold">{nome}</p>
-            <p className="text-xs text-muted-foreground">
+            <p className="break-words text-base font-semibold">{nome}</p>
+            <p className="break-all text-xs text-muted-foreground">
               {assetTypeLabel[asset.asset_type]} · Série {asset.serial_number}
               {asset.patrimony ? ` · Pat. ${asset.patrimony}` : ""}
             </p>
@@ -285,7 +285,7 @@ function BaixaPorQr() {
               O equipamento voltou para <strong>Disponível</strong> e o vínculo com{" "}
               {done.employee} foi encerrado.
             </p>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
               {undoLeft > 0 && (
                 <Button variant="outline" onClick={() => desfazer.mutate()} disabled={desfazer.isPending}>
                   {desfazer.isPending ? (
@@ -314,8 +314,8 @@ function BaixaPorQr() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="rounded-lg border bg-muted/30 p-3 text-sm">
-              <p className="font-medium">{active.employee?.full_name ?? "—"}</p>
-              <p className="text-xs text-muted-foreground">{active.employee?.email ?? ""}</p>
+              <p className="break-words font-medium">{active.employee?.full_name ?? "—"}</p>
+              <p className="break-all text-xs text-muted-foreground">{active.employee?.email ?? ""}</p>
               <p className="mt-1 text-xs text-muted-foreground">
                 Em uso desde {formatDateTime(active.assigned_at)}
               </p>
@@ -327,6 +327,7 @@ function BaixaPorQr() {
                   <Label htmlFor="condicao">Condição na devolução</Label>
                   <Input
                     id="condicao"
+                    className="h-11"
                     value={condition}
                     onChange={(e) => setCondition(e.target.value)}
                     placeholder="Ex.: em bom estado, com carregador"
@@ -338,6 +339,7 @@ function BaixaPorQr() {
                   photos={photos}
                   onPhotos={setPhotos}
                 />
+                <div className="sticky bottom-0 -mx-4 border-t bg-card/95 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0">
                 <Button
                   className="h-12 w-full text-base"
                   onClick={() => baixa.mutate()}
@@ -350,6 +352,7 @@ function BaixaPorQr() {
                   )}
                   Confirmar devolução
                 </Button>
+                </div>
               </>
             ) : (
               <p className="text-sm text-muted-foreground">
@@ -374,7 +377,7 @@ function BaixaPorQr() {
                 {lastClosed.employee ? ` · ${lastClosed.employee.full_name}` : ""}
               </p>
             ) : null}
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
               {canEdit && (
                 <Button asChild>
                   <Link to="/vinculos">
@@ -394,12 +397,12 @@ function BaixaPorQr() {
 
       {openSession && canEdit ? (
         <Card>
-          <CardContent className="flex flex-wrap items-center justify-between gap-3 pt-6">
+          <CardContent className="flex flex-col gap-3 pt-6 sm:flex-row sm:items-center sm:justify-between">
             <div className="text-sm">
               <p className="font-medium">Conferência em andamento</p>
-              <p className="text-xs text-muted-foreground">{openSession.name}</p>
+              <p className="break-words text-xs text-muted-foreground">{openSession.name}</p>
             </div>
-            <Button variant="outline" onClick={() => conferir.mutate()} disabled={conferir.isPending}>
+            <Button variant="outline" className="h-11 w-full sm:h-10 sm:w-auto" onClick={() => conferir.mutate()} disabled={conferir.isPending}>
               {conferir.isPending ? (
                 <Loader2 className="mr-2 size-4 animate-spin" />
               ) : (

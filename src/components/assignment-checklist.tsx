@@ -37,7 +37,7 @@ export function ChecklistFields({
         {items.map((item, index) => (
           <label
             key={item.label}
-            className="flex cursor-pointer items-center gap-2 text-sm text-foreground/90"
+            className="flex min-h-11 cursor-pointer items-center gap-3 rounded-md px-1 text-sm text-foreground/90 active:bg-muted"
           >
             <Checkbox
               checked={item.ok}
@@ -55,6 +55,7 @@ export function ChecklistFields({
         <input
           ref={inputRef}
           type="file"
+          capture="environment"
           accept="image/*"
           multiple
           className="hidden"
@@ -67,7 +68,7 @@ export function ChecklistFields({
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
-          className="flex items-center gap-2 text-xs font-medium text-primary hover:underline"
+          className="flex min-h-11 items-center gap-2 text-sm font-medium text-primary hover:underline sm:min-h-0 sm:text-xs"
         >
           <Camera className="size-3.5" /> Anexar fotos do estado do equipamento (opcional)
         </button>
@@ -76,14 +77,14 @@ export function ChecklistFields({
             {photos.map((file, index) => (
               <span
                 key={`${file.name}-${index}`}
-                className="flex items-center gap-1 rounded-md border bg-muted/40 px-2 py-0.5 text-[11px]"
+                className="flex max-w-full items-center gap-1 break-all rounded-md border bg-muted/40 px-2 py-1 text-xs"
               >
                 {file.name}
                 <button
                   type="button"
                   aria-label="Remover foto"
                   onClick={() => onPhotos(photos.filter((_, i) => i !== index))}
-                  className="text-muted-foreground hover:text-destructive"
+                  className="grid size-7 shrink-0 place-items-center text-muted-foreground hover:text-destructive"
                 >
                   <X className="size-3" />
                 </button>
