@@ -152,6 +152,7 @@ function Ativos() {
     { id: "locacao", label: "Locação" },
     { id: "checkin", label: "Último check-in" },
     { id: "ultima_localidade", label: "Última localidade" },
+    { id: "protecao", label: "Proteção" },
     { id: "situacao", label: "Situação", locked: true },
   ]);
   const savedViews = useSavedViews("ativos");
