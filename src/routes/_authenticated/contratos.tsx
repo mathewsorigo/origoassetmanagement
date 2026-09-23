@@ -245,8 +245,8 @@ function Contratos() {
       if (previousNumber) {
         const previousAssets = editContract && editContract !== "new" ? editContract.assets : [];
         const removed = previousAssets
-          .filter((asset: Asset) => !contractForm.asset_ids.includes(asset.id))
-          .map((asset: Asset) => asset.id);
+          .filter((asset: AssetRow) => !contractForm.asset_ids.includes(asset.id))
+          .map((asset: AssetRow) => asset.id);
         if (removed.length) {
           const { error } = await supabase.from("assets").update({ contract_number: null, lease_start: null, lease_end: null }).in("id", removed);
           if (error) throw error;
