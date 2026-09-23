@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Download, FileText } from "lucide-react";
+import { Download, FileText, Plus, Pencil, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,21 @@ import { exportToCsv } from "@/lib/export";
 import { cn } from "@/lib/utils";
 import { SortableHead, TablePagination } from "@/components/data-table-ui";
 import { useTableState } from "@/hooks/useTableState";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { logAudit } from "@/lib/audit";
+import { isOperator, useRoles, useSession } from "@/hooks/useAuth";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export const Route = createFileRoute("/_authenticated/contratos")({
   head: () => ({
@@ -53,6 +69,7 @@ type AssetRow = {
   contract_number: string | null;
   lease_start: string | null;
   lease_end: string | null;
+  monthly_cost: number | null;
 };
 
 type ContractGroup = {
@@ -87,8 +104,22 @@ const filters = [
 type FilterKey = (typeof filters)[number]["key"];
 
 function Contratos() {
+  const queryClient = useQueryClient();
+  const { user } = useSession();
+  const { data: roles } = useRoles(user);
+  const canEdit = isOperator(roles);
   const [filter, setFilter] = useState<FilterKey>("todas");
   const [openContract, setOpenContract] = useState<ContractGroup | null>(null);
+  const [editContract, setEditContract] = useState<ContractGroup | "new" | null>(null);
+  const [deleteContract, setDeleteContract] = useState<ContractGroup | null>(null);
+  const [contractForm, setContractForm] = useState({
+    contract_number: "",
+    supplier: "Simpress",
+    lease_start: "",
+    lease_end: "",
+    monthly_cost: "",
+    asset_ids: [] as string[],
+  });
 
   const { data: assets, isLoading } = useQuery({
     queryKey: ["contratos-assets"],
@@ -99,7 +130,7 @@ function Contratos() {
         const { data, error } = await supabase
           .from("assets")
           .select(
-            "id,serial_number,brand,model,asset_type,status,supplier,contract_number,lease_start,lease_end",
+            "id,serial_number,brand,model,asset_type,status,supplier,contract_number,lease_start,lease_end,monthly_cost",
           )
           .order("id")
           .range(from, from + CHUNK - 1);
@@ -187,12 +218,81 @@ function Contratos() {
     );
   }
 
+  function startContract(group?: ContractGroup) {
+    setContractForm({
+      contract_number: group?.contract ?? "",
+      supplier: group?.supplier ?? "Simpress",
+      lease_start: group?.leaseStart?.slice(0, 10) ?? "",
+      lease_end: group?.leaseEnd?.slice(0, 10) ?? "",
+      monthly_cost: group?.assets[0]?.monthly_cost != null ? String(group.assets[0].monthly_cost) : "",
+      asset_ids: group?.assets.map((asset) => asset.id) ?? [],
+    });
+    setEditContract(group ?? "new");
+  }
+
+  const saveContract = useMutation({
+    mutationFn: async () => {
+      if (!contractForm.contract_number.trim()) throw new Error("Informe o número do contrato.");
+      if (contractForm.asset_ids.length === 0) throw new Error("Selecione ao menos um equipamento.");
+      const previousNumber = editContract !== "new" ? editContract?.key : null;
+      const payload = {
+        contract_number: contractForm.contract_number.trim(),
+        supplier: contractForm.supplier.trim() || null,
+        lease_start: contractForm.lease_start || null,
+        lease_end: contractForm.lease_end || null,
+        monthly_cost: contractForm.monthly_cost ? Number(contractForm.monthly_cost) : null,
+      };
+      if (previousNumber) {
+        const removed = editContract?.assets.filter((asset) => !contractForm.asset_ids.includes(asset.id)).map((asset) => asset.id) ?? [];
+        if (removed.length) {
+          const { error } = await supabase.from("assets").update({ contract_number: null, lease_start: null, lease_end: null }).in("id", removed);
+          if (error) throw error;
+        }
+      }
+      const { error } = await supabase.from("assets").update(payload).in("id", contractForm.asset_ids);
+      if (error) throw error;
+      await logAudit({
+        action: previousNumber ? "editar_contrato" : "criar_contrato",
+        entity: "contracts",
+        details: { anterior: previousNumber, depois: payload, asset_ids: contractForm.asset_ids },
+      });
+    },
+    onSuccess: () => {
+      toast.success(editContract === "new" ? "Contrato criado." : "Contrato atualizado.");
+      setEditContract(null);
+      void queryClient.invalidateQueries({ queryKey: ["contratos-assets"] });
+      void queryClient.invalidateQueries({ queryKey: ["assets"] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const removeContract = useMutation({
+    mutationFn: async () => {
+      if (!deleteContract) return;
+      const ids = deleteContract.assets.map((asset) => asset.id);
+      const { error } = await supabase
+        .from("assets")
+        .update({ contract_number: null, lease_start: null, lease_end: null, monthly_cost: null })
+        .in("id", ids);
+      if (error) throw error;
+      await logAudit({ action: "remover_contrato", entity: "contracts", details: { contract_number: deleteContract.contract, asset_ids: ids } });
+    },
+    onSuccess: () => {
+      toast.success("Contrato removido dos equipamentos.");
+      setDeleteContract(null);
+      void queryClient.invalidateQueries({ queryKey: ["contratos-assets"] });
+      void queryClient.invalidateQueries({ queryKey: ["assets"] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
   return (
     <div>
       <PageHeader
         breadcrumb="Contratos"
         title="Contratos e locações"
         description="Agrupe os equipamentos por contrato Simpress, acompanhe vencimentos e gere a lista de devolução."
+        actions={canEdit ? <Button onClick={() => startContract()}><Plus className="mr-2 size-4" /> Novo contrato</Button> : undefined}
       />
 
       <div className="mb-4 flex flex-wrap gap-2">
@@ -299,6 +399,16 @@ function Contratos() {
                     <Button variant="ghost" size="sm" onClick={() => exportContract(g)}>
                       <Download className="mr-1 size-4" /> Devolução
                     </Button>
+                    {canEdit && g.key !== "sem-contrato" && (
+                      <>
+                        <Button variant="ghost" size="icon" aria-label="Editar contrato" onClick={() => startContract(g)}>
+                          <Pencil className="size-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" aria-label="Remover contrato" onClick={() => setDeleteContract(g)}>
+                          <Trash2 className="size-4 text-destructive" />
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </TableCell>
               </TableRow>
@@ -362,6 +472,54 @@ function Contratos() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={!!editContract} onOpenChange={(value) => !value && setEditContract(null)}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{editContract === "new" ? "Novo contrato" : "Editar contrato"}</DialogTitle>
+            <DialogDescription>Defina os dados e os equipamentos que pertencem a este contrato.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2"><Label>Número do contrato</Label><Input value={contractForm.contract_number} onChange={(event) => setContractForm({ ...contractForm, contract_number: event.target.value })} /></div>
+            <div className="space-y-2"><Label>Fornecedor</Label><Input value={contractForm.supplier} onChange={(event) => setContractForm({ ...contractForm, supplier: event.target.value })} /></div>
+            <div className="space-y-2"><Label>Início</Label><Input type="date" value={contractForm.lease_start} onChange={(event) => setContractForm({ ...contractForm, lease_start: event.target.value })} /></div>
+            <div className="space-y-2"><Label>Fim</Label><Input type="date" value={contractForm.lease_end} onChange={(event) => setContractForm({ ...contractForm, lease_end: event.target.value })} /></div>
+            <div className="space-y-2 sm:col-span-2"><Label>Custo mensal por equipamento</Label><Input inputMode="decimal" value={contractForm.monthly_cost} onChange={(event) => setContractForm({ ...contractForm, monthly_cost: event.target.value })} /></div>
+          </div>
+          <div className="space-y-2">
+            <Label>Equipamentos</Label>
+            <div className="max-h-64 divide-y overflow-y-auto rounded-lg border">
+              {(assets ?? []).map((asset) => {
+                const checked = contractForm.asset_ids.includes(asset.id);
+                return (
+                  <label key={asset.id} className="flex cursor-pointer items-center gap-3 p-3 text-sm hover:bg-muted/50">
+                    <Checkbox checked={checked} onCheckedChange={() => setContractForm((current) => ({ ...current, asset_ids: checked ? current.asset_ids.filter((id) => id !== asset.id) : [...current.asset_ids, asset.id] }))} />
+                    <span className="min-w-0 flex-1 truncate">{asset.serial_number} · {`${asset.brand ?? ""} ${asset.model ?? ""}`.trim() || assetTypeLabel[asset.asset_type]}</span>
+                    {asset.contract_number && asset.contract_number !== (editContract === "new" ? "" : editContract?.key) && <span className="text-xs text-muted-foreground">{asset.contract_number}</span>}
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditContract(null)}>Cancelar</Button>
+            <Button disabled={saveContract.isPending} onClick={() => saveContract.mutate()}>Salvar contrato</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!deleteContract} onOpenChange={(value) => !value && setDeleteContract(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remover contrato?</AlertDialogTitle>
+            <AlertDialogDescription>Os dados do contrato serão retirados de {deleteContract?.total ?? 0} equipamentos. Os ativos não serão excluídos.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction disabled={removeContract.isPending} onClick={(event) => { event.preventDefault(); removeContract.mutate(); }}>Remover contrato</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
