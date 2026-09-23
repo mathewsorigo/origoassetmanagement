@@ -503,9 +503,12 @@ export function AssetDetailPanel({
                   {isLoading && !asset ? (
                     <Skeleton className="mt-4 h-6 w-40" />
                   ) : (
-                    <h2 className="mt-4 w-full truncate font-display text-lg font-semibold tracking-tight">
-                      {title}
-                    </h2>
+                    <div className="mt-4 flex w-full min-w-0 items-center justify-center gap-1.5">
+                      <h2 className="truncate font-display text-lg font-semibold tracking-tight">
+                        {title}
+                      </h2>
+                      <BitdefenderStatus installed={asset?.bitdefender_installed} />
+                    </div>
                   )}
                   <p className="mt-1 text-xs text-muted-foreground">
                     Série {asset?.serial_number ?? "—"}
@@ -707,10 +710,6 @@ export function AssetDetailPanel({
                             label="Último check-in no Intune"
                             value={formatDateTime(asset?.intune_last_sync)}
                           />
-                          <div className="space-y-1">
-                            <p className="text-[11px] font-semibold uppercase text-muted-foreground">Proteção</p>
-                            <BitdefenderStatus installed={form.bitdefender_installed} withLabel />
-                          </div>
                           <DetailField label="Cadastrado em" value={formatDate(asset?.created_at)} />
                           <DetailField label="Observações" value={form.notes} />
                         </DetailSection>

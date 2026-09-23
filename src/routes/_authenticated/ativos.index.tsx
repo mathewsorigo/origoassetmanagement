@@ -152,7 +152,6 @@ function Ativos() {
     { id: "locacao", label: "Locação" },
     { id: "checkin", label: "Último check-in" },
     { id: "ultima_localidade", label: "Última localidade" },
-    { id: "protecao", label: "Proteção" },
     { id: "situacao", label: "Situação", locked: true },
   ]);
   const savedViews = useSavedViews("ativos");
@@ -279,7 +278,6 @@ function Ativos() {
       locacao: (a) => a.lease_end,
       checkin: (a) => a.intune_last_sync,
       ultima_localidade: (a) => a.last_seen_location,
-      protecao: (a) => a.bitdefender_installed,
       situacao: (a) => assetStatusLabel[a.status],
     },
   });
@@ -616,14 +614,17 @@ function Ativos() {
                       <div className="flex items-center gap-3">
                         <AssetIcon type={a.asset_type} model={a.model} />
                         <div className="min-w-0">
-                          <p
-                            className={cn(
-                              "font-medium text-foreground transition-colors",
-                              selected && "text-primary",
-                            )}
-                          >
-                            {`${a.brand ?? ""} ${a.model ?? ""}`.trim() || a.serial_number}
-                          </p>
+                          <div className="flex min-w-0 items-center gap-1.5">
+                            <p
+                              className={cn(
+                                "truncate font-medium text-foreground transition-colors",
+                                selected && "text-primary",
+                              )}
+                            >
+                              {`${a.brand ?? ""} ${a.model ?? ""}`.trim() || a.serial_number}
+                            </p>
+                            <BitdefenderStatus installed={a.bitdefender_installed} />
+                          </div>
                           <p className="text-xs text-muted-foreground">
                             {assetTypeLabel[a.asset_type]} · Série {a.serial_number}
                             {a.patrimony ? ` · Pat. ${a.patrimony}` : ""}
@@ -664,9 +665,6 @@ function Ativos() {
                       <TableCell className="max-w-40 truncate text-[13px]">
                         {a.last_seen_location ?? "—"}
                       </TableCell>
-                    )}
-                    {columns.isVisible("protecao") && (
-                      <TableCell><BitdefenderStatus installed={a.bitdefender_installed} /></TableCell>
                     )}
                     {columns.isVisible("situacao") && (
                       <TableCell>
