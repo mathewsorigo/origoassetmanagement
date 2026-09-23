@@ -292,11 +292,11 @@ function Painel() {
       </div>
 
       <div className="mt-5 grid gap-3 lg:grid-cols-2">
-        <Card>
+        <Card className="flex flex-col">
           <CardHeader>
             <CardTitle>Equipamentos por localidade</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex min-h-0 flex-1 flex-col">
             {isLoading ? (
               <Skeleton className="h-80 w-full" />
             ) : (
