@@ -70,7 +70,7 @@ export function AssetQrButton({
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent className="max-h-[90dvh] w-[calc(100vw-1.5rem)] overflow-y-auto sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>QR Code do equipamento</DialogTitle>
             <DialogDescription>
@@ -83,20 +83,21 @@ export function AssetQrButton({
               <img
                 src={dataUrl}
                 alt={`QR Code de ${title}`}
-                className="size-56 rounded-md bg-white"
+                className="aspect-square w-full max-w-56 rounded-md bg-white"
               />
             ) : (
-              <Skeleton className="size-56 rounded-md" />
+              <Skeleton className="aspect-square w-full max-w-56 rounded-md" />
             )}
             <div className="text-center">
-              <p className="text-sm font-medium">{title}</p>
-              <p className="text-xs text-muted-foreground">{subtitle}</p>
+              <p className="break-words text-sm font-medium">{title}</p>
+              <p className="break-all text-xs text-muted-foreground">{subtitle}</p>
             </div>
           </div>
 
           <DialogFooter className="sm:justify-center">
             <Button
               variant="secondary"
+              className="h-11 w-full sm:h-10 sm:w-auto"
               onClick={() => void openQrSheet([{ title, subtitle, value }], "Etiqueta do equipamento")}
             >
               <Printer className="mr-2 size-4" /> Imprimir etiqueta
