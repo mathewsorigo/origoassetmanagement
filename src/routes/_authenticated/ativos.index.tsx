@@ -615,17 +615,14 @@ function Ativos() {
                       <div className="flex items-center gap-3">
                         <AssetIcon type={a.asset_type} model={a.model} />
                         <div className="min-w-0">
-                          <div className="flex min-w-0 items-center gap-1.5">
-                            <p
-                              className={cn(
-                                "truncate font-medium text-foreground transition-colors",
-                                selected && "text-primary",
-                              )}
-                            >
-                              {`${a.brand ?? ""} ${a.model ?? ""}`.trim() || a.serial_number}
-                            </p>
-                            <BitdefenderStatus installed={a.bitdefender_installed} />
-                          </div>
+                          <p
+                            className={cn(
+                              "truncate font-medium text-foreground transition-colors",
+                              selected && "text-primary",
+                            )}
+                          >
+                            {`${a.brand ?? ""} ${a.model ?? ""}`.trim() || a.serial_number}
+                          </p>
                           <p className="text-xs text-muted-foreground">
                             {assetTypeLabel[a.asset_type]} · Série {a.serial_number}
                             {a.patrimony ? ` · Pat. ${a.patrimony}` : ""}
