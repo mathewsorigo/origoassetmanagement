@@ -84,6 +84,8 @@ import { useRoles, useSession, isOperator } from "@/hooks/useAuth";
 import { assetStatusLabel, assetTypeLabel, formatDate, formatMoney } from "@/lib/format";
 import { logAudit } from "@/lib/audit";
 import { exportToExcel } from "@/lib/excel";
+import { BitdefenderStatus } from "@/components/bitdefender-status";
+import { Switch } from "@/components/ui/switch";
 
 export const Route = createFileRoute("/_authenticated/ativos/")({
   head: () => ({
@@ -112,6 +114,8 @@ const emptyForm = {
   status: "disponivel",
   condition: "",
   location: "",
+  last_seen_location: "",
+  bitdefender_installed: false,
   monthly_cost: "",
   lease_start: "",
   lease_end: "",
@@ -146,6 +150,9 @@ function Ativos() {
     { id: "usuario", label: "Usuário atual" },
     { id: "fornecedor", label: "Fornecedor" },
     { id: "locacao", label: "Locação" },
+    { id: "checkin", label: "Último check-in" },
+    { id: "ultima_localidade", label: "Última localidade" },
+    { id: "protecao", label: "Proteção" },
     { id: "situacao", label: "Situação", locked: true },
   ]);
   const savedViews = useSavedViews("ativos");
@@ -205,6 +212,8 @@ function Ativos() {
         status: form.status as "disponivel",
         condition: form.condition || null,
         location: form.location || null,
+        last_seen_location: form.last_seen_location || null,
+        bitdefender_installed: form.bitdefender_installed,
         monthly_cost: form.monthly_cost ? Number(form.monthly_cost) : null,
         lease_start: form.lease_start || null,
         lease_end: form.lease_end || null,
@@ -254,7 +263,7 @@ function Ativos() {
         if (!tags.some((tag) => tag.id === tagFilter)) return false;
       }
       if (!t) return true;
-      return [a.serial_number, a.brand, a.model, a.patrimony, a.imei, a.location]
+      return [a.serial_number, a.brand, a.model, a.patrimony, a.imei, a.location, a.last_seen_location]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(t));
     });
@@ -267,6 +276,9 @@ function Ativos() {
       usuario: (a) => holderOf(a)?.full_name ?? null,
       fornecedor: (a) => a.supplier,
       locacao: (a) => a.lease_end,
+      checkin: (a) => a.intune_last_sync,
+      ultima_localidade: (a) => a.last_seen_location,
+      protecao: (a) => a.bitdefender_installed,
       situacao: (a) => assetStatusLabel[a.status],
     },
   });
@@ -313,6 +325,9 @@ function Ativos() {
       Etiquetas: (assetTagMap?.get(a.id) ?? []).map((t) => t.name).join(", "),
       "Custo mensal": a.monthly_cost,
       "Fim da locação": a.lease_end,
+      "Último check-in Intune": a.intune_last_sync,
+      "Última localidade vista": a.last_seen_location,
+      "Bitdefender instalado": a.bitdefender_installed ? "Sim" : "Não",
     }));
   }
 
@@ -639,6 +654,19 @@ function Ativos() {
                         {a.lease_end ? `até ${formatDate(a.lease_end)}` : "—"}
                       </TableCell>
                     )}
+                    {columns.isVisible("checkin") && (
+                      <TableCell className="num text-xs text-muted-foreground">
+                        {a.intune_last_sync ? formatDate(a.intune_last_sync) : "—"}
+                      </TableCell>
+                    )}
+                    {columns.isVisible("ultima_localidade") && (
+                      <TableCell className="max-w-40 truncate text-[13px]">
+                        {a.last_seen_location ?? "—"}
+                      </TableCell>
+                    )}
+                    {columns.isVisible("protecao") && (
+                      <TableCell><BitdefenderStatus installed={a.bitdefender_installed} /></TableCell>
+                    )}
                     {columns.isVisible("situacao") && (
                       <TableCell>
                         <div className="flex flex-wrap items-center gap-1.5">
@@ -853,6 +881,7 @@ function Ativos() {
                 ["supplier", "Fornecedor"],
                 ["contract_number", "Contrato"],
                 ["location", "Localidade"],
+                ["last_seen_location", "Última localidade vista"],
                 ["condition", "Condição"],
                 ["monthly_cost", "Custo mensal (R$)"],
               ] as const
@@ -866,6 +895,17 @@ function Ativos() {
                 />
               </div>
             ))}
+            <div className="flex items-center justify-between gap-3 rounded-lg border p-3 sm:col-span-2">
+              <div>
+                <Label htmlFor="new-bitdefender">Bitdefender instalado</Label>
+                <p className="text-xs text-muted-foreground">Estado detectado no último sincronismo.</p>
+              </div>
+              <Switch
+                id="new-bitdefender"
+                checked={form.bitdefender_installed}
+                onCheckedChange={(checked) => setForm({ ...form, bitdefender_installed: checked })}
+              />
+            </div>
             <div className="space-y-2">
               <Label>Início da locação</Label>
               <Input

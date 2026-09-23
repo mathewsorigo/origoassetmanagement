@@ -7,9 +7,9 @@ export function BitdefenderStatus({
   withLabel = false,
   className,
 }: {
-  installed?: boolean | null;
-  withLabel?: boolean;
-  className?: string;
+  installed?: boolean | null | undefined;
+  withLabel?: boolean | undefined;
+  className?: string | undefined;
 }) {
   const label = installed ? "Bitdefender instalado" : "Bitdefender não detectado";
   return (
