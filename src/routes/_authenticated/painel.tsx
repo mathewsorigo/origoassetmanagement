@@ -19,9 +19,11 @@ const TypeBars = lazy(() =>
 const MonthlyLine = lazy(() =>
   import("@/components/painel-charts").then((m) => ({ default: m.MonthlyLine })),
 );
+const AssetLocationMap = lazy(() =>
+  import("@/components/asset-location-map").then((m) => ({ default: m.AssetLocationMap })),
+);
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
-import { StatusBadge } from "@/components/status-badge";
 import { StatCard } from "@/components/stat-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
@@ -33,7 +35,7 @@ export const Route = createFileRoute("/_authenticated/painel")({
       { title: "Painel · Órigo Ativos" },
       {
         name: "description",
-        content: "Visão geral dos equipamentos, vínculos e termos pendentes de assinatura.",
+        content: "Visão geral dos equipamentos, vínculos e distribuição por localidade.",
       },
       { property: "og:title", content: "Painel · Órigo Ativos" },
       { property: "og:description", content: "Visão geral do inventário de TI da Órigo Energia." },
@@ -73,12 +75,14 @@ function Painel() {
         return all;
       }
 
-      const [assets, employees, timeline, agreements, assignments, signed, pending, active] =
+      const [assets, employees, timeline, assignments, signed, active] =
         await Promise.all([
         fetchAll((from, to) =>
           supabase
             .from("assets")
-            .select("id,status,asset_type,lease_end,serial_number,brand,model")
+            .select(
+              "id,status,asset_type,lease_end,serial_number,brand,model,location,last_seen_location",
+            )
             .order("id")
             .range(from, to),
         ),
@@ -88,12 +92,6 @@ function Painel() {
         fetchAll((from, to) =>
           supabase.from("assignments").select("id,assigned_at").order("id").range(from, to),
         ),
-        supabase
-          .from("agreements")
-          .select("id,status,created_at,employee:employees(full_name),asset:assets(serial_number)")
-          .not("status", "in", "(assinado,recusado)")
-          .order("created_at", { ascending: false })
-          .limit(8),
         supabase
           .from("assignments")
           .select(
@@ -107,10 +105,6 @@ function Painel() {
           .select("id", { count: "exact", head: true })
           .eq("status", "assinado"),
         supabase
-          .from("agreements")
-          .select("id", { count: "exact", head: true })
-          .not("status", "in", "(assinado,recusado)"),
-        supabase
           .from("assignments")
           .select("id", { count: "exact", head: true })
           .eq("status", "ativo"),
@@ -119,10 +113,8 @@ function Painel() {
         assets,
         employees,
         timeline,
-        agreements: agreements.data ?? [],
         assignments: assignments.data ?? [],
         signedCount: signed.count ?? 0,
-        pendingCount: pending.count ?? 0,
         activeCount: active.count ?? 0,
       };
     },
@@ -130,8 +122,29 @@ function Painel() {
 
   const assets = data?.assets ?? [];
   const count = (status: string) => assets.filter((a) => a.status === status).length;
-  const pendingAgreements = data?.agreements ?? [];
   const signedCount = data?.signedCount ?? 0;
+
+  const locations = Array.from(
+    assets.reduce((grouped, asset) => {
+      const location = asset.last_seen_location?.trim() || asset.location?.trim();
+      if (!location) return grouped;
+      const key = location
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLocaleLowerCase("pt-BR");
+      const current = grouped.get(key);
+      grouped.set(key, {
+        location: current?.location ?? location,
+        total: (current?.total ?? 0) + 1,
+      });
+      return grouped;
+    }, new Map<string, { location: string; total: number }>()),
+  )
+    .map(([, location]) => location)
+    .sort((a, b) => b.total - a.total || a.location.localeCompare(b.location, "pt-BR"));
+  const withoutLocation = assets.filter(
+    (asset) => !asset.last_seen_location?.trim() && !asset.location?.trim(),
+  ).length;
 
   const soon = assets
     .filter((a) => {
@@ -279,57 +292,18 @@ function Painel() {
       </div>
 
       <div className="mt-5 grid gap-3 lg:grid-cols-2">
-        <Card >
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>
-              Termos pendentes
-              <span className="ml-2 text-sm font-normal text-muted-foreground">
-                {data?.pendingCount ?? 0}
-              </span>
-            </CardTitle>
-            <Link to="/termos" className="text-xs text-primary hover:underline">
-              Ver todos
-            </Link>
+        <Card>
+          <CardHeader>
+            <CardTitle>Equipamentos por localidade</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
-            {signedCount + (data?.pendingCount ?? 0) > 0 && (
-              <div className="mb-3 space-y-1.5">
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>Adimplência dos termos</span>
-                  <span className="font-semibold tabular-nums text-foreground">
-                    {Math.round((signedCount / (signedCount + (data?.pendingCount ?? 0))) * 100)}%
-                    assinados
-                  </span>
-                </div>
-                <div className="h-2 overflow-hidden rounded-full bg-muted">
-                  <div
-                    className="h-full rounded-full bg-success transition-all duration-700"
-                    style={{
-                      width: `${Math.round((signedCount / (signedCount + (data?.pendingCount ?? 0))) * 100)}%`,
-                    }}
-                  />
-                </div>
-              </div>
+          <CardContent>
+            {isLoading ? (
+              <Skeleton className="h-80 w-full" />
+            ) : (
+              <Suspense fallback={<Skeleton className="h-80 w-full" />}>
+                <AssetLocationMap data={locations} withoutLocation={withoutLocation} />
+              </Suspense>
             )}
-            {pendingAgreements.length === 0 && (
-              <p className="text-sm text-muted-foreground">Nenhum termo pendente.</p>
-            )}
-            {pendingAgreements.map((a) => (
-              <div
-                key={a.id}
-                className="flex items-center justify-between gap-3 rounded-md border p-2.5 transition-colors hover:bg-muted/30"
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">
-                    {(a.employee as { full_name?: string } | null)?.full_name ?? "—"}
-                  </p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    Série {(a.asset as { serial_number?: string } | null)?.serial_number ?? "—"}
-                  </p>
-                </div>
-                <StatusBadge value={a.status} />
-              </div>
-            ))}
           </CardContent>
         </Card>
 
