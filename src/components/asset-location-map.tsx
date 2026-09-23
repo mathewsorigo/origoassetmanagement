@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { GeoJsonObject } from "geojson";
+import { geoEqualEarth } from "d3-geo";
 import {
   ComposableMap,
   Geographies,
@@ -80,6 +81,21 @@ export function AssetLocationMap({
   withoutLocation: number;
 }) {
   const [active, setActive] = useState<LocatedDatum | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState({ width: 0, height: 0 });
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const update = () => {
+      setSize({ width: el.clientWidth, height: el.clientHeight });
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   const { located, unresolved } = useMemo(() => {
     const points: LocatedDatum[] = [];
     let missing = withoutLocation;
@@ -92,55 +108,77 @@ export function AssetLocationMap({
   }, [data, withoutLocation]);
   const max = Math.max(1, ...located.map((item) => item.total));
 
+  // geoEqualEarth's globe has a ~2.05:1 width-to-height ratio. Size the
+  // container height to match so the globe fills it without empty space.
+  const width = size.width || 800;
+  const height = size.width > 0 ? Math.round(width / 2.05) : 320;
+
+  const projection = useMemo(() => {
+    return geoEqualEarth().fitExtent(
+      [
+        [0, 0],
+        [width, height],
+      ],
+      { type: "Sphere" },
+    );
+  }, [width, height]);
+
   return (
     <div>
-      <div className="relative h-72 overflow-hidden rounded-md bg-muted/40 sm:h-80">
-        <ComposableMap
-          projection="geoEqualEarth"
-          projectionConfig={{ scale: 145 }}
-          className="h-full w-full"
-          aria-label="Mapa mundial com a distribuição dos equipamentos"
-        >
-          <Sphere id="asset-map-sphere" fill="var(--card)" stroke="var(--border)" strokeWidth={0.7} />
-          <Graticule stroke="var(--border)" strokeWidth={0.35} />
-          <Geographies geography={world as unknown as GeoJsonObject}>
-            {({ geographies }) =>
-              geographies.map((geography) => (
-                <Geography
-                  key={geography.rsmKey}
-                  geography={geography}
-                  fill="var(--muted)"
-                  stroke="var(--card)"
-                  strokeWidth={0.55}
-                  className="outline-none transition-colors hover:fill-secondary focus:fill-secondary"
-                />
-              ))
-            }
-          </Geographies>
-          {located.map((item) => {
-            const radius = 4 + Math.sqrt(item.total / max) * 10;
-            return (
-              <Marker key={item.location} coordinates={item.coordinates}>
-                <g
-                  role="button"
-                  tabIndex={0}
-                  aria-label={`${item.location}: ${item.total} equipamentos`}
-                  onMouseEnter={() => setActive(item)}
-                  onMouseLeave={() => setActive(null)}
-                  onFocus={() => setActive(item)}
-                  onBlur={() => setActive(null)}
-                  onClick={() =>
-                    setActive((current) => (current?.location === item.location ? null : item))
-                  }
-                  className="cursor-pointer outline-none"
-                >
-                  <circle r={radius + 4} fill="var(--primary)" opacity={0.16} />
-                  <circle r={radius} fill="var(--primary)" stroke="var(--card)" strokeWidth={2} />
-                </g>
-              </Marker>
-            );
-          })}
-        </ComposableMap>
+      <div
+        ref={containerRef}
+        className="relative overflow-hidden rounded-md bg-muted/40"
+        style={{ height: size.width > 0 ? `${height}px` : undefined }}
+      >
+        {size.width > 0 && (
+          <ComposableMap
+            width={width}
+            height={height}
+            projection={projection}
+            className="h-full w-full"
+            aria-label="Mapa mundial com a distribuição dos equipamentos"
+          >
+            <Sphere id="asset-map-sphere" fill="var(--card)" stroke="var(--border)" strokeWidth={0.7} />
+            <Graticule stroke="var(--border)" strokeWidth={0.35} />
+            <Geographies geography={world as unknown as GeoJsonObject}>
+              {({ geographies }) =>
+                geographies.map((geography) => (
+                  <Geography
+                    key={geography.rsmKey}
+                    geography={geography}
+                    fill="var(--muted)"
+                    stroke="var(--card)"
+                    strokeWidth={0.55}
+                    className="outline-none transition-colors hover:fill-secondary focus:fill-secondary"
+                  />
+                ))
+              }
+            </Geographies>
+            {located.map((item) => {
+              const radius = 4 + Math.sqrt(item.total / max) * 10;
+              return (
+                <Marker key={item.location} coordinates={item.coordinates}>
+                  <g
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`${item.location}: ${item.total} equipamentos`}
+                    onMouseEnter={() => setActive(item)}
+                    onMouseLeave={() => setActive(null)}
+                    onFocus={() => setActive(item)}
+                    onBlur={() => setActive(null)}
+                    onClick={() =>
+                      setActive((current) => (current?.location === item.location ? null : item))
+                    }
+                    className="cursor-pointer outline-none"
+                  >
+                    <circle r={radius + 4} fill="var(--primary)" opacity={0.16} />
+                    <circle r={radius} fill="var(--primary)" stroke="var(--card)" strokeWidth={2} />
+                  </g>
+                </Marker>
+              );
+            })}
+          </ComposableMap>
+        )}
 
         {active && (
           <div className="pointer-events-none absolute left-3 top-3 rounded-md border bg-popover px-3 py-2 shadow-[var(--shadow-elevated)]">

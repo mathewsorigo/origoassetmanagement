@@ -291,7 +291,7 @@ function Painel() {
         </Card>
       </div>
 
-      <div className="mt-5 grid gap-3 lg:grid-cols-2">
+      <div className="mt-5 grid items-start gap-3 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle>Equipamentos por localidade</CardTitle>
