@@ -263,7 +263,8 @@ function Ativos() {
         if (!tags.some((tag) => tag.id === tagFilter)) return false;
       }
       if (!t) return true;
-      return [a.serial_number, a.brand, a.model, a.patrimony, a.imei, a.location, a.last_seen_location]
+      const holder = holderOf(a)?.full_name ?? null;
+      return [a.serial_number, a.brand, a.model, a.patrimony, a.imei, a.location, a.last_seen_location, holder]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(t));
     });
