@@ -124,11 +124,10 @@ export function AssetLocationMap({
   }, [width, height]);
 
   return (
-    <div>
+    <div className="flex h-full min-h-0 flex-1 flex-col">
       <div
         ref={containerRef}
-        className="relative overflow-hidden rounded-md bg-muted/40"
-        style={{ height: size.width > 0 ? `${height}px` : undefined }}
+        className="relative min-h-0 flex-1 overflow-hidden rounded-md bg-muted/40"
       >
         {size.width > 0 && (
           <ComposableMap
