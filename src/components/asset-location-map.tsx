@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { GeoJsonObject } from "geojson";
+import { geoEqualEarth } from "d3-geo";
 import {
   ComposableMap,
   Geographies,
