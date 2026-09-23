@@ -243,7 +243,10 @@ function Contratos() {
         monthly_cost: contractForm.monthly_cost ? Number(contractForm.monthly_cost) : null,
       };
       if (previousNumber) {
-        const removed = editContract?.assets.filter((asset) => !contractForm.asset_ids.includes(asset.id)).map((asset) => asset.id) ?? [];
+        const previousAssets = editContract && editContract !== "new" ? editContract.assets : [];
+        const removed = previousAssets
+          .filter((asset: Asset) => !contractForm.asset_ids.includes(asset.id))
+          .map((asset: Asset) => asset.id);
         if (removed.length) {
           const { error } = await supabase.from("assets").update({ contract_number: null, lease_start: null, lease_end: null }).in("id", removed);
           if (error) throw error;
