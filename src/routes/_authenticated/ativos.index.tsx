@@ -663,8 +663,13 @@ function Ativos() {
                       <TableCell className="max-w-40 truncate text-[13px]">
                         {a.last_seen_location ?? "—"}
                       </TableCell>
-                    )}
-                    {columns.isVisible("situacao") && (
+                     )}
+                     {columns.isVisible("protecao") && (
+                       <TableCell>
+                         <BitdefenderStatus installed={a.bitdefender_installed} />
+                       </TableCell>
+                     )}
+                     {columns.isVisible("situacao") && (
                       <TableCell>
                         <div className="flex flex-wrap items-center gap-1.5">
                           <StatusBadge value={a.status} />
