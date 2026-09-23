@@ -64,6 +64,13 @@
       "when": 1790173800561,
       "tag": "0008_hermes_integration_api",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1790181329355,
+      "tag": "0009_hermes_api_v1_extension",
+      "breakpoints": true
     }
   ]
 }
