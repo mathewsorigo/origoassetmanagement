@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { Plus, Undo2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Plus, Search, Undo2, X } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
@@ -100,7 +100,18 @@ function Vinculos() {
     },
   });
 
-  const table = useTableState(assignments, {
+  const [nameQuery, setNameQuery] = useState("");
+  const normalizeName = (v: string) =>
+    v.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+  const filteredAssignments = useMemo(() => {
+    const q = normalizeName(nameQuery);
+    if (!q || !assignments) return assignments;
+    return assignments.filter((a) =>
+      normalizeName((a.employee as { full_name: string } | null)?.full_name ?? "").includes(q),
+    );
+  }, [assignments, nameQuery]);
+
+  const table = useTableState(filteredAssignments, {
     key: "vinculos",
     accessors: {
       colaborador: (a) => (a.employee as { full_name: string } | null)?.full_name ?? null,
