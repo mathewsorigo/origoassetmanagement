@@ -13,6 +13,7 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { isLocalPreview } from "@/lib/local-preview";
 
 function NotFoundComponent() {
   return (
@@ -130,6 +131,7 @@ function RootComponent() {
   const router = useRouter();
 
   useEffect(() => {
+    if (isLocalPreview()) return;
     const { data } = supabase.auth.onAuthStateChange(() => {
       router.invalidate();
     });

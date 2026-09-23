@@ -1,3 +1,7 @@
+import { useRemoteList } from "@/hooks/useRemoteList";
+import { fetchAll } from "@/lib/fetch-all";
+import { QueryError } from "@/components/query-error";
+import { reconcileAgreementDispatch } from "@/lib/assinatura.functions";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -64,59 +68,72 @@ function Termos() {
   const [uploadTarget, setUploadTarget] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
 
-  const { data: agreements, isLoading } = useQuery({
-    queryKey: ["agreements"],
+  const [term, setTerm] = useState("");
+  const list = useRemoteList({
+    view: "agreements_list",
+    key: "agreements",
+    term,
+    defaultSort: "created_at",
+    defaultSortDir: "desc",
+    columns: {
+      colaborador: "employee_name",
+      equipamento: "asset_name",
+      envio: "sent_at",
+      assinatura: "signed_at",
+      situacao: "status",
+      created_at: "created_at",
+    },
+  });
+  const { rows: agreements, isLoading, table } = list;
+  const stats = useQuery({
+    queryKey: ["agreements-stats"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("agreements")
-        .select(
-          "*, employee:employees(id,full_name,email), asset:assets(id,serial_number,brand,model)",
-        )
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data;
+      const r = await supabase.from("agreement_statistics").select("*").single();
+      if (r.error) throw r.error;
+      return r.data;
     },
   });
-
-  const table = useTableState(agreements, {
-    key: "termos",
-    accessors: {
-      colaborador: (a) => (a.employee as { full_name: string } | null)?.full_name ?? null,
-      equipamento: (a) => {
-        const asset = a.asset as { brand: string | null; model: string | null; serial_number: string } | null;
-        return asset ? `${asset.brand ?? ""} ${asset.model ?? ""}`.trim() || asset.serial_number : null;
-      },
-      envio: (a) => a.sent_at,
-      assinatura: (a) => a.signed_at,
-      situacao: (a) => a.status,
-    },
-  });
-
-  const statusCounts = (agreements ?? []).reduce<Record<string, number>>((acc, a) => {
-    acc[a.status] = (acc[a.status] ?? 0) + 1;
-    return acc;
-  }, {});
-  const signedTotal = statusCounts["assinado"] ?? 0;
-  const pendingTotal = (agreements ?? []).length - signedTotal - (statusCounts["recusado"] ?? 0);
+  const signedTotal = stats.data?.signed ?? 0,
+    pendingTotal = stats.data?.pending ?? 0;
   const signedPct =
     signedTotal + pendingTotal > 0
       ? Math.round((signedTotal / (signedTotal + pendingTotal)) * 100)
-      : 100;
+      : null;
+  const reconcile = useServerFn(reconcileAgreementDispatch);
+  const [resolveId, setResolveId] = useState<string | null>(null),
+    [envelope, setEnvelope] = useState("");
+  const resolve = useMutation({
+    mutationFn: () => reconcile({ data: { agreementId: resolveId!, envelopeId: envelope } }),
+    onSuccess: () => {
+      setResolveId(null);
+      setEnvelope("");
+      void queryClient.invalidateQueries();
+      toast.success("Envio conciliado com o envelope informado.");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   const remind = useMutation({
     mutationFn: async () => {
-      const { data: settings } = await supabase
+      const { data: settings, error: settingsError } = await supabase
         .from("app_settings")
         .select("value")
         .eq("key", "termos")
         .maybeSingle();
+      if (settingsError) throw settingsError;
       const value = (settings?.value ?? {}) as Record<string, unknown>;
-      const prazo = Number(value["prazo_dias"]) > 0 ? Number(value["prazo_dias"]) : 7;
+      if (value["lembrete_ativo"] === false)
+        throw new Error("Os lembretes estão desativados nas preferências de Termos.");
+      const prazo = Number(value["lembrete_dias"]) > 0 ? Number(value["lembrete_dias"]) : 3;
       const cutoff = new Date(Date.now() - prazo * 24 * 60 * 60 * 1000).toISOString();
-      const overdue = (agreements ?? []).filter(
-        (a) =>
-          ["rascunho", "enviado", "visualizado"].includes(a.status) &&
-          (a.sent_at ?? a.created_at) < cutoff,
+      const overdue = await fetchAll((from, to) =>
+        supabase
+          .from("agreements")
+          .select("id")
+          .in("status", ["rascunho", "enviado", "visualizado"])
+          .or("and(sent_at.is.null,created_at.lt." + cutoff + "),sent_at.lt." + cutoff)
+          .order("id")
+          .range(from, to),
       );
       if (overdue.length === 0) return { count: 0, prazo };
       const { error } = await supabase.from("agreement_reminders").insert(
@@ -160,34 +177,28 @@ function Termos() {
       if (!uploadTarget || !file) throw new Error("Selecione o arquivo assinado.");
       const agreement = agreements?.find((a) => a.id === uploadTarget);
       if (!agreement) throw new Error("Termo não encontrado.");
-      const path = `termos/${agreement.id}/${Date.now()}-${file.name.replace(/\s+/g, "-")}`;
+      const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+      const hash = Array.from(new Uint8Array(digest))
+        .map((x) => x.toString(16).padStart(2, "0"))
+        .join("");
+      const path = `termos/${agreement.id}/${hash}-${file.name.replace(/[^\w.-]+/g, "-")}`;
       const { error: uploadError } = await supabase.storage
         .from("asset-documents")
         .upload(path, file, { upsert: false });
-      if (uploadError) throw uploadError;
+      if (
+        uploadError &&
+        !["409", "Duplicate"].includes(
+          String((uploadError as { statusCode?: string }).statusCode),
+        ) &&
+        !/already exists/i.test(uploadError.message)
+      )
+        throw uploadError;
 
-      const { error: docError } = await supabase.from("documents").insert({
-        agreement_id: agreement.id,
-        employee_id: agreement.employee_id,
-        asset_id: agreement.asset_id,
-        kind: "termo_assinado",
-        file_name: file.name,
-        storage_path: path,
-        uploaded_by: user?.id ?? null,
+      const { error } = await supabase.rpc("qa_transaction", {
+        p_action: "attach_signed",
+        p_data: { id: agreement.id, name: file.name, path },
       });
-      if (docError) throw docError;
-
-      const { error: updateError } = await supabase
-        .from("agreements")
-        .update({
-          status: "assinado",
-          signed_at: new Date().toISOString(),
-          signed_document_path: path,
-        })
-        .eq("id", agreement.id);
-      if (updateError) throw updateError;
-
-      await logAudit({ action: "anexar_termo_assinado", entity: "agreements", entityId: agreement.id });
+      if (error) throw error;
     },
     onSuccess: () => {
       toast.success("Documento assinado anexado ao histórico.");
@@ -198,8 +209,23 @@ function Termos() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  if (list.isError || stats.isError)
+    return (
+      <QueryError
+        retry={() => {
+          void list.refetch();
+          void stats.refetch();
+        }}
+      />
+    );
   return (
     <div>
+      <Input
+        aria-label="Buscar termos"
+        placeholder="Buscar por colaborador ou série"
+        value={term}
+        onChange={(e) => setTerm(e.target.value)}
+      />
       <PageHeader
         breadcrumb="Termos de uso"
         title="Termos de uso"
@@ -219,6 +245,10 @@ function Termos() {
       />
 
       <Card className="mb-4 p-4">
+        <p className="mb-2 text-sm">
+          Cobertura documental: {stats.data?.covered ?? 0} de {stats.data?.active ?? 0} vínculos
+          ativos possuem termo.
+        </p>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap gap-4 text-sm">
             <span>
@@ -230,19 +260,33 @@ function Termos() {
               <span className="text-muted-foreground">pendentes</span>
             </span>
             <span>
-              <span className="font-semibold tabular-nums">{signedPct}%</span>{" "}
-              <span className="text-muted-foreground">de adimplência</span>
+              <span className="font-semibold tabular-nums">
+                {signedPct === null ? "Sem dados" : signedPct + "%"}
+              </span>{" "}
+              <span className="text-muted-foreground">dos termos emitidos assinados</span>
             </span>
           </div>
           <div className="h-2 min-w-40 flex-1 overflow-hidden rounded-full bg-muted sm:max-w-xs">
             <div
               className="h-full rounded-full bg-success transition-all duration-700"
-              style={{ width: `${signedPct}%` }}
+              style={{ width: `${signedPct ?? 0}%` }}
             />
           </div>
         </div>
       </Card>
 
+      {agreements
+        .filter((a) => ["processando", "incerto"].includes(a.dispatch_state ?? ""))
+        .map((a) => (
+          <div className="my-2 rounded border p-3" key={a.id}>
+            <p>
+              Envio aguardando conferência: {a.dispatch_error ?? "Solicitação em processamento"}
+            </p>
+            <Button variant="outline" onClick={() => setResolveId(a.id)}>
+              Conciliar envelope confirmado
+            </Button>
+          </div>
+        ))}
       <Card className="overflow-x-auto p-4">
         <Table>
           <TableHeader>
@@ -276,7 +320,7 @@ function Termos() {
                 </TableCell>
               </TableRow>
             )}
-            {!isLoading && table.total === 0 && (
+            {!isLoading && !list.isError && table.total === 0 && (
               <TableRow>
                 <TableCell colSpan={6} className="text-center text-muted-foreground">
                   Nenhum termo gerado. Crie um vínculo em Vínculos.
@@ -427,6 +471,30 @@ function Termos() {
               Anexar documento
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={!!resolveId}
+        onOpenChange={(open) => {
+          if (!open) setResolveId(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Conciliar envio</DialogTitle>
+            <DialogDescription>
+              Confira o termo no serviço de assinatura e informe o identificador do envelope
+              existente. Esta ação registra a confirmação e não envia outro documento.
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            aria-label="Identificador do envelope confirmado"
+            value={envelope}
+            onChange={(e) => setEnvelope(e.target.value)}
+          />
+          <Button disabled={!envelope.trim() || resolve.isPending} onClick={() => resolve.mutate()}>
+            Confirmar envelope verificado
+          </Button>
         </DialogContent>
       </Dialog>
     </div>

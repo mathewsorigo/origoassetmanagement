@@ -1,3 +1,4 @@
+import { fetchAll } from "@/lib/fetch-all";
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
@@ -46,14 +47,16 @@ async function writeAudit(
   details: Record<string, unknown>,
 ) {
   const db = await admin();
-  await db.from("audit_log").insert({
-    actor_id: actorId,
-    actor_email: actorEmail,
-    action,
-    entity: "acessos",
-    entity_id: entityId,
-    details: details as never,
-  });
+  await checked(
+    db.from("audit_log").insert({
+      actor_id: actorId,
+      actor_email: actorEmail,
+      action,
+      entity: "acessos",
+      entity_id: entityId,
+      details: details as never,
+    }),
+  );
 }
 
 export const listAccessUsers = createServerFn({ method: "GET" })
@@ -62,14 +65,16 @@ export const listAccessUsers = createServerFn({ method: "GET" })
     await assertAdmin(context as never);
     const db = await admin();
 
-    const [{ data: profiles }, { data: roles }, authList] = await Promise.all([
-      db.from("profiles").select("*").order("full_name", { nullsFirst: false }),
-      db.from("user_roles").select("user_id, role"),
-      db.auth.admin.listUsers({ page: 1, perPage: 200 }),
+    const [profiles, roles, authUsers] = await Promise.all([
+      fetchAll((from, to) => db.from("profiles").select("*").order("id").range(from, to)),
+      fetchAll((from, to) =>
+        db.from("user_roles").select("user_id, role").order("id").range(from, to),
+      ),
+      allAuthUsers(db),
     ]);
 
     const authById = new Map(
-      (authList.data?.users ?? []).map((u) => [
+      authUsers.map((u) => [
         u.id,
         { last_sign_in_at: u.last_sign_in_at ?? null, confirmed: !!u.email_confirmed_at },
       ]),
@@ -101,12 +106,14 @@ export const listAccessUsers = createServerFn({ method: "GET" })
 
 export const inviteAccessUser = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { email: string; fullName: string; roles: string[]; origin: string }) => ({
-    email: input.email.trim().toLowerCase(),
-    fullName: input.fullName.trim(),
-    roles: parseRoles(input.roles),
-    origin: input.origin,
-  }))
+  .inputValidator(
+    (input: { email: string; fullName: string; roles: string[]; origin: string }) => ({
+      email: input.email.trim().toLowerCase(),
+      fullName: input.fullName.trim(),
+      roles: parseRoles(input.roles),
+      origin: input.origin,
+    }),
+  )
   .handler(async ({ data, context }) => {
     await assertAdmin(context as never);
     if (!data.email) throw new Error("Informe o e-mail.");
@@ -116,15 +123,20 @@ export const inviteAccessUser = createServerFn({ method: "POST" })
     }
     const db = await admin();
 
+    const { data: previousAllow } = await checked(
+      db.from("access_allowlist").select("*").eq("email", data.email).maybeSingle(),
+    );
     // libera o e-mail antes de criar a conta (o banco só aceita e-mails liberados)
-    await db.from("access_allowlist").upsert(
-      {
-        email: data.email,
-        full_name: data.fullName,
-        roles: (data.roles.length ? data.roles : ["colaborador"]) as never,
-        created_by: context.userId,
-      },
-      { onConflict: "email" },
+    await checked(
+      db.from("access_allowlist").upsert(
+        {
+          email: data.email,
+          full_name: data.fullName,
+          roles: (data.roles.length ? data.roles : ["colaborador"]) as never,
+          created_by: context.userId,
+        },
+        { onConflict: "email" },
+      ),
     );
 
     const { data: invited, error } = await db.auth.admin.inviteUserByEmail(data.email, {
@@ -132,6 +144,7 @@ export const inviteAccessUser = createServerFn({ method: "POST" })
       data: { full_name: data.fullName },
     });
     if (error) {
+      await restoreAllowlist(db, data.email, previousAllow);
       throw new Error(
         error.message.includes("already been registered")
           ? "Este e-mail já possui acesso ao sistema."
@@ -140,28 +153,26 @@ export const inviteAccessUser = createServerFn({ method: "POST" })
     }
     const userId = invited.user!.id;
 
-    await db
-      .from("profiles")
-      .upsert(
-        {
-          id: userId,
-          email: data.email,
-          full_name: data.fullName,
-          status: "convidado",
-          invited_at: new Date().toISOString(),
-        },
-        { onConflict: "id" },
+    try {
+      await checked(
+        context.supabase.rpc("finalize_access_invite", {
+          p_user: userId,
+          p_email: data.email,
+          p_name: data.fullName,
+          p_roles: data.roles.length ? data.roles : ["colaborador"],
+        }),
       );
-
-    await db.from("user_roles").delete().eq("user_id", userId);
-    if (data.roles.length) {
-      await db.from("user_roles").insert(data.roles.map((role) => ({ user_id: userId, role })));
+    } catch (error) {
+      const rollback = await db.auth.admin.deleteUser(userId);
+      if (rollback.error)
+        throw new Error(
+          "O convite foi enviado, mas o cadastro falhou e não pôde ser revertido. Revise esta conta em Acessos antes de reenviar.",
+        );
+      await restoreAllowlist(db, data.email, previousAllow);
+      throw new Error(
+        "O cadastro falhou e a conta recém-criada foi removida. O convite enviado não concede acesso. Tente novamente.",
+      );
     }
-
-    await writeAudit(context.userId, context.claims?.email ?? null, "convidar_acesso", userId, {
-      email: data.email,
-      roles: data.roles,
-    });
     return { id: userId };
   });
 
@@ -171,14 +182,18 @@ export const resendAccessInvite = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await assertAdmin(context as never);
     const db = await admin();
-    const { error } = await db.auth.admin.inviteUserByEmail(data.email, {
-      redirectTo: `${data.origin}/definir-senha`,
-    });
+    const { error } = await checked(
+      db.auth.admin.inviteUserByEmail(data.email, {
+        redirectTo: `${data.origin}/definir-senha`,
+      }),
+    );
     if (error) throw new Error(error.message);
-    await db
-      .from("profiles")
-      .update({ status: "convidado", invited_at: new Date().toISOString() })
-      .eq("id", data.userId);
+    await checked(
+      db
+        .from("profiles")
+        .update({ status: "convidado", invited_at: new Date().toISOString() })
+        .eq("id", data.userId),
+    );
     await writeAudit(
       context.userId,
       context.claims?.email ?? null,
@@ -200,18 +215,11 @@ export const setAccessRoles = createServerFn({ method: "POST" })
     if (data.userId === context.userId && !data.roles.includes("admin")) {
       throw new Error("Você não pode remover o seu próprio papel de administrador.");
     }
-    const db = await admin();
-    await db.from("user_roles").delete().eq("user_id", data.userId);
-    if (data.roles.length) {
-      await db.from("user_roles").insert(data.roles.map((role) => ({ user_id: data.userId, role })));
-    }
-    await writeAudit(
-      context.userId,
-      context.claims?.email ?? null,
-      "atualizar_papeis",
-      data.userId,
-      { roles: data.roles },
-    );
+    const { error } = await context.supabase.rpc("set_access_roles_atomic", {
+      p_user: data.userId,
+      p_roles: data.roles,
+    });
+    if (error) throw error;
     return { ok: true };
   });
 
@@ -224,14 +232,34 @@ export const setAccessActive = createServerFn({ method: "POST" })
       throw new Error("Você não pode desativar a sua própria conta.");
     }
     const db = await admin();
-    const { error } = await db.auth.admin.updateUserById(data.userId, {
-      ban_duration: data.active ? "none" : "876000h",
-    });
+    const previous = await checked(db.auth.admin.getUserById(data.userId));
+    const { error } = await checked(
+      db.auth.admin.updateUserById(data.userId, {
+        ban_duration: data.active ? "none" : "876000h",
+      }),
+    );
     if (error) throw new Error(error.message);
-    await db
-      .from("profiles")
-      .update({ status: data.active ? "ativo" : "desativado" })
-      .eq("id", data.userId);
+    try {
+      const updated = await checked(
+        db
+          .from("profiles")
+          .update({ status: data.active ? "ativo" : "desativado" })
+          .eq("id", data.userId)
+          .select("id")
+          .single(),
+      );
+    } catch (error) {
+      const bannedUntil = previous.data.user?.banned_until;
+      const hours = bannedUntil ? Math.max(0, (Date.parse(bannedUntil) - Date.now()) / 3600000) : 0;
+      const rollback = await db.auth.admin.updateUserById(data.userId, {
+        ban_duration: hours > 0 ? hours + "h" : "none",
+      });
+      if (rollback.error)
+        throw new Error(
+          "Auth e perfil não puderam ser conciliados. Revise a situação desta conta antes de repetir a operação.",
+        );
+      throw error;
+    }
     await writeAudit(
       context.userId,
       context.claims?.email ?? null,
@@ -251,19 +279,23 @@ export const revokeAccessUser = createServerFn({ method: "POST" })
       throw new Error("Você não pode excluir a sua própria conta.");
     }
     const db = await admin();
-    const { data: gone } = await db
-      .from("profiles")
-      .select("email")
-      .eq("id", data.userId)
-      .maybeSingle();
-    await db.from("user_roles").delete().eq("user_id", data.userId);
-    await db.from("profiles").delete().eq("id", data.userId);
+    const { data: gone } = await checked(
+      db.from("profiles").select("email").eq("id", data.userId).maybeSingle(),
+    );
+    await checked(db.auth.admin.deleteUser(data.userId));
+    await checked(db.from("user_roles").delete().eq("user_id", data.userId));
+    await checked(db.from("profiles").delete().eq("id", data.userId));
     if (gone?.email) {
-      await db.from("access_allowlist").delete().eq("email", gone.email.toLowerCase());
+      await checked(db.from("access_allowlist").delete().eq("email", gone.email.toLowerCase()));
     }
-    const { error } = await db.auth.admin.deleteUser(data.userId);
-    if (error) throw new Error(error.message);
-    await writeAudit(context.userId, context.claims?.email ?? null, "excluir_acesso", data.userId, {});
+
+    await writeAudit(
+      context.userId,
+      context.claims?.email ?? null,
+      "excluir_acesso",
+      data.userId,
+      {},
+    );
     return { ok: true };
   });
 
@@ -288,9 +320,11 @@ export const listAllowedEmails = createServerFn({ method: "GET" })
   .handler(async ({ context }): Promise<AllowedEmail[]> => {
     await assertAdmin(context as never);
     const db = await admin();
-    const [{ data: rows }, { data: profiles }] = await Promise.all([
-      db.from("access_allowlist").select("*").order("email"),
-      db.from("profiles").select("email"),
+    const [rows, profiles] = await Promise.all([
+      fetchAll((from, to) =>
+        db.from("access_allowlist").select("*").order("email").range(from, to),
+      ),
+      fetchAll((from, to) => db.from("profiles").select("email").order("id").range(from, to)),
     ]);
     const accounts = new Set(
       (profiles ?? []).map((p) => (p.email ?? "").toLowerCase()).filter(Boolean),
@@ -314,52 +348,26 @@ function assertOrigoEmail(email: string) {
 
 export const addAllowedEmail = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { email: string; fullName?: string; roles?: string[]; note?: string }) => ({
-    email: input.email.trim().toLowerCase(),
-    fullName: (input.fullName ?? "").trim(),
-    roles: parseRoles(input.roles ?? []),
-    note: (input.note ?? "").trim(),
-  }))
+  .inputValidator(
+    (input: { email: string; fullName?: string; roles?: string[]; note?: string }) => ({
+      email: input.email.trim().toLowerCase(),
+      fullName: (input.fullName ?? "").trim(),
+      roles: parseRoles(input.roles ?? []),
+      note: (input.note ?? "").trim(),
+    }),
+  )
   .handler(async ({ data, context }) => {
     await assertAdmin(context as never);
     if (!data.email) throw new Error("Informe o e-mail.");
     assertOrigoEmail(data.email);
-    const db = await admin();
-    const roles = data.roles.length ? data.roles : (["colaborador"] as AdminRole[]);
-    const { error } = await db.from("access_allowlist").upsert(
-      {
-        email: data.email,
-        full_name: data.fullName || null,
-        roles: roles as never,
-        note: data.note || null,
-        created_by: context.userId,
-      },
-      { onConflict: "email" },
+    await checked(
+      context.supabase.rpc("allow_email_atomic", {
+        p_email: data.email,
+        p_name: data.fullName,
+        p_roles: data.roles.length ? data.roles : ["colaborador"],
+        p_note: data.note,
+      }),
     );
-    if (error) throw new Error(error.message);
-
-    // Se a pessoa já tentou entrar antes da liberação, a conta existe sem papéis:
-    // concede os papéis agora e reativa o perfil.
-    const { data: existing } = await db
-      .from("profiles")
-      .select("id")
-      .eq("email", data.email)
-      .maybeSingle();
-    if (existing?.id) {
-      await db.from("profiles").update({ status: "ativo" }).eq("id", existing.id);
-      await db
-        .from("user_roles")
-        .insert(roles.map((role) => ({ user_id: existing.id, role: role as never })));
-    }
-    await db
-      .from("access_denied_attempts")
-      .update({ resolved_at: new Date().toISOString() })
-      .eq("email", data.email);
-
-    await writeAudit(context.userId, context.claims?.email ?? null, "liberar_email", null, {
-      email: data.email,
-      roles,
-    });
     return { ok: true };
   });
 
@@ -376,11 +384,13 @@ export const listDeniedAttempts = createServerFn({ method: "GET" })
   .handler(async ({ context }): Promise<DeniedAttempt[]> => {
     await assertAdmin(context as never);
     const db = await admin();
-    const { data } = await db
-      .from("access_denied_attempts")
-      .select("id, email, full_name, attempts, last_attempt_at")
-      .is("resolved_at", null)
-      .order("last_attempt_at", { ascending: false });
+    const { data } = await checked(
+      db
+        .from("access_denied_attempts")
+        .select("id, email, full_name, attempts, last_attempt_at")
+        .is("resolved_at", null)
+        .order("last_attempt_at", { ascending: false }),
+    );
     return (data ?? []).map((r) => ({
       id: r.id,
       email: r.email,
@@ -396,10 +406,12 @@ export const dismissDeniedAttempt = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await assertAdmin(context as never);
     const db = await admin();
-    const { error } = await db
-      .from("access_denied_attempts")
-      .update({ resolved_at: new Date().toISOString() })
-      .eq("id", data.id);
+    const { error } = await checked(
+      db
+        .from("access_denied_attempts")
+        .update({ resolved_at: new Date().toISOString() })
+        .eq("id", data.id),
+    );
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -413,10 +425,42 @@ export const removeAllowedEmail = createServerFn({ method: "POST" })
       throw new Error("Você não pode remover a liberação do seu próprio e-mail.");
     }
     const db = await admin();
-    const { error } = await db.from("access_allowlist").delete().eq("email", data.email);
+    const { error } = await checked(db.from("access_allowlist").delete().eq("email", data.email));
     if (error) throw new Error(error.message);
     await writeAudit(context.userId, context.claims?.email ?? null, "bloquear_email", null, {
       email: data.email,
     });
     return { ok: true };
   });
+
+async function checked<T extends { error: { message: string } | null }>(
+  query: PromiseLike<T>,
+): Promise<T> {
+  const result = await query;
+  if (result.error) throw new Error(result.error.message);
+  return result;
+}
+
+async function restoreAllowlist(
+  db: Awaited<ReturnType<typeof admin>>,
+  email: string,
+  previous:
+    | import("@/integrations/supabase/types").Database["public"]["Tables"]["access_allowlist"]["Row"]
+    | null,
+) {
+  const response = previous
+    ? await db.from("access_allowlist").upsert(previous, { onConflict: "email" })
+    : await db.from("access_allowlist").delete().eq("email", email);
+  if (response.error)
+    throw new Error(
+      "Falha no convite e na restauração da liberação. Revise o e-mail em Acessos antes de repetir.",
+    );
+}
+async function allAuthUsers(db: Awaited<ReturnType<typeof admin>>) {
+  const users = [];
+  for (let page = 1; ; page++) {
+    const response = await checked(db.auth.admin.listUsers({ page, perPage: 200 }));
+    users.push(...response.data.users);
+    if (response.data.users.length < 200) return users;
+  }
+}

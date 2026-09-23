@@ -1,16 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
-import {
-  Plus,
-  Search,
-  UserSearch,
-  Download,
-  FileSpreadsheet,
-  Trash2,
-} from "lucide-react";
+import { useEffect, useState } from "react";
+import { Plus, Search, UserSearch, Download, FileSpreadsheet, Trash2 } from "lucide-react";
 import { SortableHead, TablePagination } from "@/components/data-table-ui";
-import { useTableState } from "@/hooks/useTableState";
+import { useRemoteList } from "@/hooks/useRemoteList";
+import { QueryError } from "@/components/query-error";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
@@ -35,7 +29,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { deleteEmployeeCascade } from "@/lib/entity-delete";
+import { archiveEntities } from "@/lib/entity-delete";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -72,6 +66,9 @@ import { logAudit } from "@/lib/audit";
 import { exportToExcel } from "@/lib/excel";
 
 export const Route = createFileRoute("/_authenticated/pessoas/")({
+  validateSearch: (search: Record<string, unknown>): { busca?: string | undefined } => ({
+    busca: typeof search["busca"] === "string" ? search["busca"] : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "Colaboradores · Órigo Ativos" },
@@ -103,7 +100,10 @@ function Pessoas() {
   const { user } = useSession();
   const { data: roles } = useRoles(user);
   const canEdit = isOperator(roles);
-  const [term, setTerm] = useState("");
+  const { busca } = Route.useSearch();
+  const [term, setTerm] = useState(busca ?? "");
+  useEffect(() => setTerm(busca ?? ""), [busca]);
+  const [archived, setArchived] = useState(false);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ ...emptyForm });
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -116,17 +116,23 @@ function Pessoas() {
     email: string;
   } | null>(null);
 
-  const { data: employees, isLoading } = useQuery({
-    queryKey: ["employees"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("employees")
-        .select("*, assignments(id,status,asset:assets(serial_number,brand,model))")
-        .order("full_name");
-      if (error) throw error;
-      return data;
+  const list = useRemoteList({
+    view: "employees_list",
+    key: "employees",
+    term,
+    archived,
+    defaultSort: "colaborador",
+    columns: {
+      colaborador: "full_name",
+      area: "department",
+      unidade: "unit",
+      equipamentos: "active_count",
+      situacao: "status",
     },
   });
+  const { rows: employees, isLoading, table } = list;
+  const filtered = employees;
+  useEffect(() => setChecked(new Set()), [list.signature, table.page]);
 
   const create = useMutation({
     mutationFn: async () => {
@@ -159,7 +165,7 @@ function Pessoas() {
       toast.success("Colaborador cadastrado.");
       setOpen(false);
       setForm({ ...emptyForm });
-      queryClient.invalidateQueries({ queryKey: ["employees"] });
+      queryClient.invalidateQueries();
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -167,28 +173,16 @@ function Pessoas() {
   const removeEmployee = useMutation({
     mutationFn: async () => {
       if (!deleteTarget) return;
-      await deleteEmployeeCascade(deleteTarget.id, { email: deleteTarget.email });
+      await archiveEntities("employees", [deleteTarget.id], archived);
     },
     onSuccess: () => {
-      toast.success("Colaborador excluído.");
+      toast.success(archived ? "Colaborador restaurado." : "Colaborador arquivado.");
       if (deleteTarget?.id === selectedId) setSelectedId(null);
       setDeleteTarget(null);
-      queryClient.invalidateQueries({ queryKey: ["employees"] });
+      queryClient.invalidateQueries();
     },
     onError: (e: Error) => toast.error(e.message),
   });
-
-
-
-  const filtered = useMemo(() => {
-    const t = term.trim().toLowerCase();
-    if (!t) return employees ?? [];
-    return (employees ?? []).filter((e) =>
-      [e.full_name, e.email, e.department, e.job_title, e.unit]
-        .filter(Boolean)
-        .some((v) => String(v).toLowerCase().includes(t)),
-    );
-  }, [employees, term]);
 
   function activeAssets(row: (typeof filtered)[number]) {
     return (
@@ -199,17 +193,6 @@ function Pessoas() {
     ).filter((a) => a.status === "ativo");
   }
 
-  const table = useTableState(filtered, {
-    key: "pessoas",
-    accessors: {
-      colaborador: (e) => e.full_name,
-      area: (e) => e.department,
-      unidade: (e) => e.unit,
-      equipamentos: (e) => activeAssets(e).length,
-      situacao: (e) => e.status,
-    },
-    defaultSort: { key: "colaborador", dir: "asc" },
-  });
   const pageRows = table.pageRows;
   const allChecked = pageRows.length > 0 && pageRows.every((e) => checked.has(e.id));
   const selectedEmployees = filtered.filter((e) => checked.has(e.id));
@@ -232,6 +215,15 @@ function Pessoas() {
     });
   }
 
+  async function exportAll(kind: "xlsx" | "csv") {
+    try {
+      const rows = rowsToExport(await list.loadAll());
+      if (kind === "xlsx") exportToExcel("colaboradores", rows);
+      else exportToCsv("colaboradores", rows);
+    } catch {
+      toast.error("Não foi possível exportar. Tente novamente.");
+    }
+  }
   function rowsToExport(list: typeof filtered) {
     return list.map((e) => ({
       Nome: e.full_name,
@@ -248,16 +240,18 @@ function Pessoas() {
 
   const removeSelected = useMutation({
     mutationFn: async () => {
-      for (const employee of selectedEmployees) {
-        await deleteEmployeeCascade(employee.id, { email: employee.email });
-      }
+      await archiveEntities(
+        "employees",
+        selectedEmployees.map((e) => e.id),
+        archived,
+      );
     },
     onSuccess: () => {
-      toast.success("Colaboradores excluídos.");
+      toast.success(archived ? "Colaboradores restaurados." : "Colaboradores arquivados.");
       setChecked(new Set());
       setBulkDelete(false);
       setSelectedId(null);
-      queryClient.invalidateQueries({ queryKey: ["employees"] });
+      queryClient.invalidateQueries();
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -277,14 +271,10 @@ function Pessoas() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  onClick={() => exportToExcel("colaboradores", rowsToExport(filtered))}
-                >
+                <DropdownMenuItem onClick={() => void exportAll("xlsx")}>
                   <FileSpreadsheet className="mr-2 size-4" /> Planilha XLSX
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => exportToCsv("colaboradores", rowsToExport(filtered))}
-                >
+                <DropdownMenuItem onClick={() => void exportAll("csv")}>
                   <Download className="mr-2 size-4" /> Arquivo CSV
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -298,8 +288,12 @@ function Pessoas() {
         }
       />
 
-
       <Card className="p-4">
+        <label className="mb-3 flex items-center gap-2 text-sm">
+          <Checkbox checked={archived} onCheckedChange={(v) => setArchived(v === true)} /> Mostrar
+          arquivados
+        </label>
+        {list.isError && <QueryError retry={list.refetch} />}
         <div className="relative max-w-md">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -311,7 +305,7 @@ function Pessoas() {
         </div>
 
         <div className="mt-3 text-xs text-muted-foreground">
-          {filtered.length} {filtered.length === 1 ? "colaborador" : "colaboradores"}
+          {table.total} {table.total === 1 ? "colaborador" : "colaboradores"}
         </div>
 
         <div className="mt-3 overflow-x-auto">
@@ -357,7 +351,7 @@ function Pessoas() {
                     ))}
                   </TableRow>
                 ))}
-              {!isLoading && filtered.length === 0 && (
+              {!isLoading && !list.isError && filtered.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={7} className="py-12">
                     <div className="flex flex-col items-center gap-3 text-center">
@@ -397,10 +391,7 @@ function Pessoas() {
                     </TableCell>
                     <TableCell>
                       <p
-                        className={cn(
-                          "font-medium transition-colors",
-                          selected && "text-primary",
-                        )}
+                        className={cn("font-medium transition-colors", selected && "text-primary")}
                       >
                         {e.full_name}
                       </p>
@@ -428,6 +419,7 @@ function Pessoas() {
                     <TableCell className="text-right" onClick={(ev) => ev.stopPropagation()}>
                       {canEdit && (
                         <RowActions
+                          deleteLabel={archived ? "Restaurar" : "Arquivar"}
                           onEdit={() => {
                             setPanelMode("edit");
                             setSelectedId(e.id);
@@ -460,7 +452,7 @@ function Pessoas() {
 
       <BulkActionBar
         count={checked.size}
-        total={filtered.length}
+        total={table.total}
         noun="colaboradores"
         onClear={() => setChecked(new Set())}
       >
@@ -475,7 +467,7 @@ function Pessoas() {
         </Button>
         {canEdit && (
           <Button size="sm" variant="destructive" onClick={() => setBulkDelete(true)}>
-            <Trash2 className="mr-1.5 size-4" /> Excluir
+            <Trash2 className="mr-1.5 size-4" /> {archived ? "Restaurar" : "Arquivar"}
           </Button>
         )}
       </BulkActionBar>
@@ -484,11 +476,11 @@ function Pessoas() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="font-display">
-              Excluir {checked.size} colaboradores?
+              {archived ? "Restaurar" : "Arquivar"} {checked.size} colaboradores?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Os vínculos, termos e documentos dessas pessoas também serão apagados. Quem tem
-              equipamento em uso precisa da devolução registrada antes.
+              O histórico, os termos e os documentos serão preservados. Quem tem equipamento em uso
+              precisa da devolução registrada antes.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -500,7 +492,7 @@ function Pessoas() {
                 removeSelected.mutate();
               }}
             >
-              Excluir definitivamente
+              Confirmar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -509,10 +501,12 @@ function Pessoas() {
       <AlertDialog open={!!deleteTarget} onOpenChange={(v) => !v && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="font-display">Excluir colaborador?</AlertDialogTitle>
+            <AlertDialogTitle className="font-display">
+              {archived ? "Restaurar" : "Arquivar"} colaborador?
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              {deleteTarget?.name} · {deleteTarget?.email}. O histórico de vínculos, termos e
-              documentos desta pessoa também serão apagados. Esta ação não pode ser desfeita.
+              {deleteTarget?.name} · {deleteTarget?.email}. O histórico, os termos e os documentos
+              serão preservados. O cadastro poderá ser restaurado.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -524,13 +518,14 @@ function Pessoas() {
                 removeEmployee.mutate();
               }}
             >
-              Excluir definitivamente
+              Confirmar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
       <EmployeeDetailPanel
+        key={selectedId}
         employeeId={selectedId}
         initialMode={panelMode}
         onOpenChange={(v) => {
@@ -569,17 +564,18 @@ function Pessoas() {
               ] as const
             ).map(([key, label]) => (
               <div key={key} className="space-y-2">
-                <Label>{label}</Label>
+                <Label htmlFor={"qa-pessoasindextsx-20143-" + encodeURIComponent(String(label))}>{label}</Label>
                 <Input
+                  id={"qa-pessoasindextsx-20143-" + encodeURIComponent(String(label))}
                   value={form[key]}
                   onChange={(ev) => setForm({ ...form, [key]: ev.target.value })}
                 />
               </div>
             ))}
             <div className="space-y-2">
-              <Label>Situação</Label>
+              <Label htmlFor={"qa-pessoasindextsx-20417-"}>Situação</Label>
               <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
-                <SelectTrigger>
+                <SelectTrigger id={"qa-pessoasindextsx-20417-"}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

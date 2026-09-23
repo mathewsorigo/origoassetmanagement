@@ -59,42 +59,37 @@ export const Route = createFileRoute("/api/public/hermes/assinatura")({
         if (data.status === "assinado" && data.document_base64) {
           const bytes = Uint8Array.from(atob(data.document_base64), (c) => c.charCodeAt(0));
           const fileName = data.file_name ?? `termo-assinado-${agreement.id.slice(0, 8)}.pdf`;
-          storagePath = `termos/${agreement.id}/${Date.now()}-${fileName.replace(/\s+/g, "-")}`;
+          const hash = (await import("node:crypto"))
+            .createHash("sha256")
+            .update(bytes)
+            .digest("hex");
+          storagePath = `termos/${agreement.id}/${hash}-${fileName.replace(/[^\w.-]+/g, "-")}`;
           const { error: uploadError } = await supabaseAdmin.storage
             .from("asset-documents")
             .upload(storagePath, bytes, { contentType: "application/pdf" });
-          if (uploadError) {
+          if (
+            uploadError &&
+            String((uploadError as { statusCode?: string }).statusCode) !== "409" &&
+            !/already exists/i.test(uploadError.message)
+          ) {
             return new Response(JSON.stringify({ error: uploadError.message }), { status: 500 });
           }
-          await supabaseAdmin.from("documents").insert({
-            agreement_id: agreement.id,
-            employee_id: agreement.employee_id,
-            asset_id: agreement.asset_id,
-            kind: "termo_assinado",
-            file_name: fileName,
-            storage_path: storagePath,
-          });
         }
-
-        const now = new Date().toISOString();
-        await supabaseAdmin
-          .from("agreements")
-          .update({
+        const result = await supabaseAdmin.rpc("apply_signature_webhook", {
+          p_data: {
+            id: agreement.id,
             status: data.status,
-            external_envelope_id: data.envelope_id ?? null,
-            declined_reason: data.declined_reason ?? null,
-            viewed_at: data.status === "visualizado" ? now : undefined,
-            signed_at: data.status === "assinado" ? now : undefined,
-            signed_document_path: storagePath,
-          } as never)
-          .eq("id", agreement.id);
-
-        await supabaseAdmin.from("integration_runs").insert({
-          provider: "hermes",
-          action: "webhook_assinatura",
-          status: "sucesso",
-          message: `Termo ${data.agreement_id} atualizado para ${data.status}.`,
+            envelope_id: data.envelope_id,
+            declined_reason: data.declined_reason,
+            path: storagePath,
+            name: data.file_name ?? "termo-assinado.pdf",
+          },
         });
+        if (result.error)
+          return new Response(JSON.stringify({ error: result.error.message }), {
+            status: 500,
+            headers: { "Content-Type": "application/json" },
+          });
 
         return new Response(JSON.stringify({ ok: true }), {
           headers: { "Content-Type": "application/json" },

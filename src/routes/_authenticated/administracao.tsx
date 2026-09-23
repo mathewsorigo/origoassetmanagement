@@ -1,16 +1,10 @@
+import { QueryError } from "@/components/query-error";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { toast } from "sonner";
-import {
-  Loader2,
-  MoreHorizontal,
-  ShieldCheck,
-  Trash2,
-  UserCheck,
-  UserX,
-} from "lucide-react";
+import { Loader2, MoreHorizontal, ShieldCheck, Trash2, UserCheck, UserX } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription } from "@/components/ui/card";
@@ -104,7 +98,12 @@ function Administracao() {
   const [rolesDraft, setRolesDraft] = useState<AdminRole[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<AdminUser | null>(null);
 
-  const { data: users, isLoading } = useQuery({
+  const {
+    data: users,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ["access-users"],
     queryFn: () => listUsers(),
     staleTime: 60 * 1000,
@@ -153,6 +152,7 @@ function Administracao() {
     onError: fail,
   });
 
+  if (isError) return <QueryError retry={refetch} />;
   return (
     <div>
       <PageHeader
@@ -311,7 +311,6 @@ function Administracao() {
 
       <AllowedEmailsCard />
 
-
       <Dialog open={!!rolesTarget} onOpenChange={(v) => !v && setRolesTarget(null)}>
         <DialogContent>
           <DialogHeader>
@@ -327,9 +326,7 @@ function Administracao() {
                 <Checkbox
                   checked={rolesDraft.includes(role)}
                   onCheckedChange={(v) =>
-                    setRolesDraft(
-                      v ? [...rolesDraft, role] : rolesDraft.filter((r) => r !== role),
-                    )
+                    setRolesDraft(v ? [...rolesDraft, role] : rolesDraft.filter((r) => r !== role))
                   }
                 />
                 {roleLabel[role]}

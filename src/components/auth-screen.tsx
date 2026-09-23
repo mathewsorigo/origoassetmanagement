@@ -9,6 +9,11 @@ import { Button } from "@/components/ui/button";
 
 import { lovable } from "@/integrations/lovable/index";
 import { useSession } from "@/hooks/useAuth";
+import {
+  enterLocalPreview,
+  hasLocalPreviewData,
+  isLocalPreviewAvailable,
+} from "@/lib/local-preview";
 
 export function AuthBackdrop({ children }: { children: React.ReactNode }) {
   return (
@@ -37,8 +42,7 @@ export function AuthBackdrop({ children }: { children: React.ReactNode }) {
               backgroundImage:
                 "radial-gradient(color-mix(in oklab, var(--foreground) 45%, transparent) 1px, transparent 1px)",
               backgroundSize: "26px 26px",
-              maskImage:
-                "radial-gradient(ellipse 70% 60% at 50% 40%, black 30%, transparent 100%)",
+              maskImage: "radial-gradient(ellipse 70% 60% at 50% 40%, black 30%, transparent 100%)",
             }}
           />
         </div>
@@ -48,8 +52,8 @@ export function AuthBackdrop({ children }: { children: React.ReactNode }) {
             Gestão completa dos ativos de TI da Órigo — do vínculo à assinatura digital.
           </h2>
           <p className="text-pretty text-base leading-relaxed text-muted-foreground">
-            Cadastre equipamentos, vincule às pessoas, gere termos de uso e
-            dispare para assinatura. Tudo centralizado, auditável e integrado.
+            Cadastre equipamentos, vincule às pessoas, gere termos de uso e dispare para assinatura.
+            Tudo centralizado, auditável e integrado.
           </p>
 
           <ul className="space-y-3 pt-2">
@@ -100,8 +104,6 @@ export function AuthScreen() {
     if (message) setNotice(message);
   }, []);
 
-
-
   const goToApp = useCallback(() => {
     const pending = takePendingQr();
     if (pending) {
@@ -121,7 +123,6 @@ export function AuthScreen() {
     }, 2500);
     return () => window.clearTimeout(fallback);
   }, [loading, session, goToApp]);
-
 
   async function handleMicrosoft() {
     setBusy(true);
@@ -145,9 +146,6 @@ export function AuthScreen() {
     );
   }
 
-
-
-
   return (
     <AuthBackdrop>
       <div className="animate-in fade-in-50 slide-in-from-bottom-3 duration-700">
@@ -158,8 +156,7 @@ export function AuthScreen() {
         <div className="mb-6 space-y-1.5">
           <h1 className="text-xl font-semibold tracking-tight">Acessar o sistema</h1>
           <p className="text-sm text-muted-foreground">
-            Acesso restrito a e-mails @origoenergia.com.br previamente liberados pelo
-            administrador.
+            Acesso restrito a e-mails @origoenergia.com.br previamente liberados pelo administrador.
           </p>
         </div>
 
@@ -196,6 +193,18 @@ export function AuthScreen() {
           </p>
         )}
 
+        {isLocalPreviewAvailable() && (
+          <div className="mt-6 space-y-2 border-t pt-5">
+            <Button className="w-full" onClick={enterLocalPreview} type="button">
+              Entrar na demonstração local
+            </Button>
+            <p className="text-center text-xs text-muted-foreground">
+              {hasLocalPreviewData()
+                ? "Explore sem SSO usando uma cópia local dos dados, somente para consulta."
+                : "Explore as telas sem SSO. Prévia visual com dados vazios."}
+            </p>
+          </div>
+        )}
 
         <p className="mt-8 text-center text-xs text-muted-foreground md:hidden">
           © 2026 Órigo Energia · Órigo Ativos

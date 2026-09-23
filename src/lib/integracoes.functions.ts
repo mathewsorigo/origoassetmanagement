@@ -40,12 +40,16 @@ async function recordRun(input: {
   message: string;
 }) {
   const db = await admin();
-  await db.from("integration_runs").insert({
+  const { error } = await db.from("integration_runs").insert({
     provider: input.provider,
     action: input.action,
     status: input.status,
     message: input.message,
   } as never);
+  if (error)
+    throw new Error(
+      "A solicitação foi processada, mas o histórico não pôde ser gravado: " + error.message,
+    );
 }
 
 async function callAgent(url: string, init?: RequestInit) {
@@ -61,7 +65,12 @@ async function callAgent(url: string, init?: RequestInit) {
     signal: AbortSignal.timeout(15000),
   });
   const body = await res.text();
-  return { ok: res.ok, status: res.status, body: body.slice(0, 500), latencyMs: Date.now() - started };
+  return {
+    ok: res.ok,
+    status: res.status,
+    body: body.slice(0, 500),
+    latencyMs: Date.now() - started,
+  };
 }
 
 /** Testa a conexão com a integração e registra o resultado no histórico. */
@@ -116,12 +125,22 @@ export const syncIntegration = createServerFn({ method: "POST" })
 
     if (!setting.enabled) {
       const message = "Integração desativada. Ative antes de sincronizar.";
-      await recordRun({ provider: data.provider, action: "sincronizar", status: "pendente", message });
+      await recordRun({
+        provider: data.provider,
+        action: "sincronizar",
+        status: "pendente",
+        message,
+      });
       return { provider: data.provider, ok: false, message, latencyMs: null };
     }
     if (!base) {
       const message = "Endereço do hermes-agent ainda não informado.";
-      await recordRun({ provider: data.provider, action: "sincronizar", status: "pendente", message });
+      await recordRun({
+        provider: data.provider,
+        action: "sincronizar",
+        status: "pendente",
+        message,
+      });
       return { provider: data.provider, ok: false, message, latencyMs: null };
     }
 
@@ -131,21 +150,14 @@ export const syncIntegration = createServerFn({ method: "POST" })
         body: JSON.stringify({ provider: data.provider }),
       });
       const message = res.ok
-        ? `Sincronização solicitada (${res.status}). ${res.body}`.trim()
+        ? `Solicitação aceita (${res.status}). A conclusão depende da confirmação do agente. ${res.body}`.trim()
         : `Serviço respondeu ${res.status}: ${res.body || "sem detalhes"}`;
       await recordRun({
         provider: data.provider,
         action: "sincronizar",
-        status: res.ok ? "sucesso" : "erro",
+        status: res.ok ? "solicitado" : "erro",
         message,
       });
-      if (res.ok) {
-        const db = await admin();
-        await db
-          .from("integration_settings")
-          .update({ last_sync_at: new Date().toISOString() } as never)
-          .eq("id", setting.id);
-      }
       return { provider: data.provider, ok: res.ok, message, latencyMs: res.latencyMs };
     } catch (error) {
       const message = error instanceof Error ? error.message : "Falha ao sincronizar.";

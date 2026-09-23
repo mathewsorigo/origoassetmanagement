@@ -1,6 +1,7 @@
+import { parseMoney, validatePeriod } from "@/lib/validation";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Plus,
   Search,
@@ -13,7 +14,8 @@ import {
   Trash2,
 } from "lucide-react";
 import { SortableHead, TablePagination } from "@/components/data-table-ui";
-import { useTableState } from "@/hooks/useTableState";
+import { useRemoteList } from "@/hooks/useRemoteList";
+import { QueryError } from "@/components/query-error";
 import { useColumns, useSavedViews, useViewMode } from "@/hooks/useTableView";
 import { ViewToggle } from "@/components/view-toggle";
 import { ColumnPicker } from "@/components/column-picker";
@@ -48,7 +50,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { deleteAssetCascade } from "@/lib/entity-delete";
+import { archiveEntities } from "@/lib/entity-delete";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -99,6 +101,15 @@ export const Route = createFileRoute("/_authenticated/ativos/")({
       { property: "og:description", content: "Inventário de equipamentos da Órigo Energia." },
     ],
   }),
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { situacao?: string | undefined; busca?: string | undefined } => ({
+    busca: typeof search["busca"] === "string" ? search["busca"] : undefined,
+    situacao:
+      typeof search["situacao"] === "string" && Object.hasOwn(assetStatusLabel, search["situacao"])
+        ? search["situacao"]
+        : undefined,
+  }),
   component: Ativos,
 });
 
@@ -127,8 +138,13 @@ function Ativos() {
   const { user } = useSession();
   const { data: roles } = useRoles(user);
   const canEdit = isOperator(roles);
-  const [term, setTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("todos");
+  const { situacao, busca } = Route.useSearch();
+  const [term, setTerm] = useState(busca ?? "");
+  useEffect(() => setTerm(busca ?? ""), [busca]);
+
+  const [statusFilter, setStatusFilter] = useState(situacao ?? "todos");
+  useEffect(() => setStatusFilter(situacao ?? "todos"), [situacao]);
+  const [archived, setArchived] = useState(false);
   const [typeFilter, setTypeFilter] = useState("todos");
   const [tagFilter, setTagFilter] = useState("todas");
   const [open, setOpen] = useState(false);
@@ -149,9 +165,9 @@ function Ativos() {
     { id: "equipamento", label: "Equipamento", locked: true },
     { id: "usuario", label: "Usuário atual" },
     { id: "fornecedor", label: "Fornecedor" },
-    { id: "locacao", label: "Locação" },
+    { id: "locacao", label: "Locação", defaultHidden: true },
     { id: "checkin", label: "Último check-in" },
-    { id: "ultima_localidade", label: "Última localidade" },
+    { id: "ultima_localidade", label: "Última localidade", defaultHidden: true },
     { id: "protecao", label: "Proteção" },
     { id: "situacao", label: "Situação", locked: true },
   ]);
@@ -174,32 +190,38 @@ function Ativos() {
   const { data: tagList } = useTags();
   const { data: assetTagMap } = useAssetTags();
 
-  const { data: assets, isLoading } = useQuery({
-    queryKey: ["assets"],
-    queryFn: async () => {
-      const pageSize = 1000;
-      const all: NonNullable<Awaited<ReturnType<typeof fetchPage>>> = [];
-      async function fetchPage(from: number) {
-        const { data, error } = await supabase
-          .from("assets")
-          .select("*, assignments(id,status,employee:employees(id,full_name))")
-          .order("created_at", { ascending: false })
-          .range(from, from + pageSize - 1);
-        if (error) throw error;
-        return data ?? [];
-      }
-      for (let from = 0; ; from += pageSize) {
-        const page = await fetchPage(from);
-        all.push(...page);
-        if (page.length < pageSize) break;
-      }
-      return all;
+  const list = useRemoteList({
+    view: "assets_list",
+    key: "assets",
+    term,
+    archived,
+    filters: {
+      status: statusFilter === "todos" ? "" : statusFilter,
+      asset_type: typeFilter === "todos" ? "" : typeFilter,
+      tag_ids: tagFilter === "todas" ? "" : tagFilter,
+    },
+    defaultSort: "equipamento",
+    columns: {
+      equipamento: "model",
+      usuario: "holder_name",
+      fornecedor: "supplier",
+      locacao: "lease_end",
+      checkin: "intune_last_sync",
+      ultima_localidade: "last_seen_location",
+      situacao: "status",
+      protecao: "bitdefender_installed",
     },
   });
+  const { rows: assets, isLoading, table } = list;
+  useEffect(() => setChecked(new Set()), [list.signature, table.page]);
+  const filtered = assets;
+  const pageRows = assets;
+  const allChecked = pageRows.length > 0 && pageRows.every((a) => checked.has(a.id));
 
   const create = useMutation({
     mutationFn: async () => {
       if (!form.serial_number.trim()) throw new Error("Informe o número de série.");
+      validatePeriod(form.lease_start, form.lease_end);
       const payload = {
         asset_type: form.asset_type as "notebook",
         brand: form.brand || null,
@@ -214,7 +236,7 @@ function Ativos() {
         location: form.location || null,
         last_seen_location: form.last_seen_location || null,
         bitdefender_installed: form.bitdefender_installed,
-        monthly_cost: form.monthly_cost ? Number(form.monthly_cost) : null,
+        monthly_cost: parseMoney(form.monthly_cost),
         lease_start: form.lease_start || null,
         lease_end: form.lease_end || null,
         notes: form.notes || null,
@@ -232,7 +254,7 @@ function Ativos() {
       toast.success("Ativo cadastrado.");
       setOpen(false);
       setForm({ ...emptyForm });
-      queryClient.invalidateQueries({ queryKey: ["assets"] });
+      queryClient.invalidateQueries();
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -240,50 +262,16 @@ function Ativos() {
   const removeAsset = useMutation({
     mutationFn: async () => {
       if (!deleteTarget) return;
-      await deleteAssetCascade(deleteTarget.id, { serial_number: deleteTarget.serial });
+      await archiveEntities("assets", [deleteTarget.id], archived);
     },
     onSuccess: () => {
-      toast.success("Ativo excluído.");
+      toast.success(archived ? "Ativo restaurado." : "Ativo arquivado.");
       if (deleteTarget?.id === selectedId) setSelectedId(null);
       setDeleteTarget(null);
-      queryClient.invalidateQueries({ queryKey: ["assets"] });
+      queryClient.invalidateQueries();
     },
     onError: (e: Error) => toast.error(e.message),
   });
-
-
-
-  const filtered = useMemo(() => {
-    const t = term.trim().toLowerCase();
-    return (assets ?? []).filter((a) => {
-      if (statusFilter !== "todos" && a.status !== statusFilter) return false;
-      if (typeFilter !== "todos" && a.asset_type !== typeFilter) return false;
-      if (tagFilter !== "todas") {
-        const tags = assetTagMap?.get(a.id) ?? [];
-        if (!tags.some((tag) => tag.id === tagFilter)) return false;
-      }
-      if (!t) return true;
-      const holder = holderOf(a)?.full_name ?? null;
-      return [a.serial_number, a.brand, a.model, a.patrimony, a.imei, a.location, a.last_seen_location, holder]
-        .filter(Boolean)
-        .some((v) => String(v).toLowerCase().includes(t));
-    });
-  }, [assets, term, statusFilter, typeFilter, tagFilter, assetTagMap]);
-
-  const table = useTableState(filtered, {
-    key: "ativos",
-    accessors: {
-      equipamento: (a) => `${a.brand ?? ""} ${a.model ?? ""}`.trim() || a.serial_number,
-      usuario: (a) => holderOf(a)?.full_name ?? null,
-      fornecedor: (a) => a.supplier,
-      locacao: (a) => a.lease_end,
-      checkin: (a) => a.intune_last_sync,
-      ultima_localidade: (a) => a.last_seen_location,
-      situacao: (a) => assetStatusLabel[a.status],
-    },
-  });
-  const pageRows = table.pageRows;
-  const allChecked = pageRows.length > 0 && pageRows.every((a) => checked.has(a.id));
 
   function toggleRow(id: string) {
     setChecked((prev) => {
@@ -304,10 +292,12 @@ function Ativos() {
   }
 
   function holderOf(asset: NonNullable<typeof assets>[number]) {
-    const active = (asset.assignments as Array<{
-      status: string;
-      employee: { id: string; full_name: string } | null;
-    }> | null)?.find((x) => x.status === "ativo");
+    const active = (
+      asset.assignments as Array<{
+        status: string;
+        employee: { id: string; full_name: string } | null;
+      }> | null
+    )?.find((x) => x.status === "ativo");
     return active?.employee ?? null;
   }
 
@@ -331,6 +321,17 @@ function Ativos() {
     }));
   }
 
+  async function exportAll(kind: "xlsx" | "csv" | "qr") {
+    try {
+      const rows = kind === "qr" && checked.size ? selectedAssets : await list.loadAll();
+      if (kind === "qr") await generateQr(rows);
+      else if (kind === "xlsx") exportToExcel("ativos", rowsToExport(rows));
+      else exportToCsv("ativos", rowsToExport(rows));
+    } catch {
+      toast.error("Não foi possível exportar. Tente novamente.");
+    }
+  }
+
   const selectedAssets = filtered.filter((a) => checked.has(a.id));
 
   async function generateQr(list: typeof filtered) {
@@ -349,16 +350,18 @@ function Ativos() {
 
   const removeSelected = useMutation({
     mutationFn: async () => {
-      for (const asset of selectedAssets) {
-        await deleteAssetCascade(asset.id, { serial_number: asset.serial_number });
-      }
+      await archiveEntities(
+        "assets",
+        selectedAssets.map((a) => a.id),
+        archived,
+      );
     },
     onSuccess: () => {
-      toast.success("Equipamentos excluídos.");
+      toast.success(archived ? "Equipamentos restaurados." : "Equipamentos arquivados.");
       setChecked(new Set());
       setBulkDelete(false);
       setSelectedId(null);
-      queryClient.invalidateQueries({ queryKey: ["assets"] });
+      queryClient.invalidateQueries();
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -378,15 +381,13 @@ function Ativos() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => exportToExcel("ativos", rowsToExport(filtered))}>
+                <DropdownMenuItem onClick={() => void exportAll("xlsx")}>
                   <FileSpreadsheet className="mr-2 size-4" /> Planilha XLSX
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => exportToCsv("ativos", rowsToExport(filtered))}>
+                <DropdownMenuItem onClick={() => void exportAll("csv")}>
                   <Download className="mr-2 size-4" /> Arquivo CSV
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => generateQr(selectedAssets.length ? selectedAssets : filtered)}
-                >
+                <DropdownMenuItem onClick={() => void exportAll("qr")}>
                   <QrCode className="mr-2 size-4" /> Gerar QR Code
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -400,8 +401,11 @@ function Ativos() {
         }
       />
 
-
       <Card className="p-4">
+        <label className="mb-3 flex items-center gap-2 text-sm">
+          <Checkbox checked={archived} onCheckedChange={(v) => setArchived(v === true)} /> Mostrar
+          arquivados
+        </label>
         <div className="flex flex-wrap gap-3">
           <div className="relative min-w-56 flex-1">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -455,7 +459,7 @@ function Ativos() {
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <span className="text-xs text-muted-foreground">
-            {filtered.length} {filtered.length === 1 ? "equipamento" : "equipamentos"}
+            {table.total} {table.total === 1 ? "equipamento" : "equipamentos"}
           </span>
           {typeFilter !== "todos" && (
             <button
@@ -499,7 +503,9 @@ function Ativos() {
           </div>
         </div>
 
-        {viewMode === "cards" ? (
+        {list.isError ? (
+          <QueryError retry={list.refetch} />
+        ) : viewMode === "cards" ? (
           <div className="mt-3">
             {!isLoading && filtered.length === 0 ? (
               <EmptyState
@@ -522,6 +528,7 @@ function Ativos() {
                 actions={(item) =>
                   canEdit ? (
                     <RowActions
+                      deleteLabel={archived ? "Restaurar" : "Arquivar"}
                       onEdit={() => {
                         setPanelMode("edit");
                         setSelectedId(item.id);
@@ -544,175 +551,176 @@ function Ativos() {
             )}
           </div>
         ) : (
-        <div className="mt-3 overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-10">
-                  <Checkbox
-                    checked={allChecked}
-                    onCheckedChange={togglePage}
-                    aria-label="Selecionar todos"
-                  />
-                </TableHead>
-                {visibleColumns.map(({ id: columnKey, label }) => (
-                  <SortableHead
-                    key={columnKey}
-                    columnKey={columnKey}
-                    label={label}
-                    sortKey={table.sortKey}
-                    sortDir={table.sortDir}
-                    onToggle={table.toggleSort}
-                  />
-                ))}
-                <TableHead className="w-10" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading &&
-                Array.from({ length: 5 }).map((_, i) => (
-                  <TableRow key={`s-${i}`}>
-                    {Array.from({ length: visibleColumns.length + 2 }).map((__, j) => (
-                      <TableCell key={j}>
-                        <Skeleton className="h-4 w-full max-w-40" />
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))}
-              {!isLoading && filtered.length === 0 && (
+          <div className="mt-3 overflow-x-auto">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={visibleColumns.length + 2} className="py-8">
-                    <EmptyState
-                      icon={PackageSearch}
-                      title="Nenhum equipamento encontrado"
-                      description="Ajuste os filtros ou cadastre um novo equipamento."
+                  <TableHead className="w-10">
+                    <Checkbox
+                      checked={allChecked}
+                      onCheckedChange={togglePage}
+                      aria-label="Selecionar todos"
                     />
-                  </TableCell>
+                  </TableHead>
+                  {visibleColumns.map(({ id: columnKey, label }) => (
+                    <SortableHead
+                      key={columnKey}
+                      columnKey={columnKey}
+                      label={label}
+                      sortKey={table.sortKey}
+                      sortDir={table.sortDir}
+                      onToggle={table.toggleSort}
+                    />
+                  ))}
+                  <TableHead className="w-10" />
                 </TableRow>
-              )}
-              {pageRows.map((a, index) => {
-                const holder = holderOf(a);
-                const selected = selectedId === a.id;
-                const tags = assetTagMap?.get(a.id) ?? [];
-                return (
-                  <TableRow
-                    key={a.id}
-                    onClick={() => setSelectedId(a.id)}
-                    style={{ animationDelay: `${Math.min(index, 12) * 25}ms` }}
-                    className={cn(
-                      "cursor-pointer animate-in fade-in-0 slide-in-from-bottom-1 transition-colors",
-                      selected && "bg-primary/[0.07] hover:bg-primary/10",
-                    )}
-                  >
-                    <TableCell onClick={(e) => e.stopPropagation()}>
-                      <Checkbox
-                        checked={checked.has(a.id)}
-                        onCheckedChange={() => toggleRow(a.id)}
-                        aria-label="Selecionar equipamento"
+              </TableHeader>
+              <TableBody>
+                {isLoading &&
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <TableRow key={`s-${i}`}>
+                      {Array.from({ length: visibleColumns.length + 2 }).map((__, j) => (
+                        <TableCell key={j}>
+                          <Skeleton className="h-4 w-full max-w-40" />
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))}
+                {!isLoading && filtered.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={visibleColumns.length + 2} className="py-8">
+                      <EmptyState
+                        icon={PackageSearch}
+                        title="Nenhum equipamento encontrado"
+                        description="Ajuste os filtros ou cadastre um novo equipamento."
                       />
                     </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <AssetIcon type={a.asset_type} model={a.model} />
-                        <div className="min-w-0">
-                          <p
-                            className={cn(
-                              "truncate font-medium text-foreground transition-colors",
-                              selected && "text-primary",
+                  </TableRow>
+                )}
+                {pageRows.map((a, index) => {
+                  const holder = holderOf(a);
+                  const selected = selectedId === a.id;
+                  const tags = assetTagMap?.get(a.id) ?? [];
+                  return (
+                    <TableRow
+                      key={a.id}
+                      onClick={() => setSelectedId(a.id)}
+                      style={{ animationDelay: `${Math.min(index, 12) * 25}ms` }}
+                      className={cn(
+                        "cursor-pointer animate-in fade-in-0 slide-in-from-bottom-1 transition-colors",
+                        selected && "bg-primary/[0.07] hover:bg-primary/10",
+                      )}
+                    >
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <Checkbox
+                          checked={checked.has(a.id)}
+                          onCheckedChange={() => toggleRow(a.id)}
+                          aria-label="Selecionar equipamento"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <AssetIcon type={a.asset_type} model={a.model} />
+                          <div className="min-w-0">
+                            <p
+                              className={cn(
+                                "truncate font-medium text-foreground transition-colors",
+                                selected && "text-primary",
+                              )}
+                            >
+                              {`${a.brand ?? ""} ${a.model ?? ""}`.trim() || a.serial_number}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {assetTypeLabel[a.asset_type]} · Série {a.serial_number}
+                              {a.patrimony ? ` · Pat. ${a.patrimony}` : ""}
+                            </p>
+                            {tags.length > 0 && (
+                              <div className="mt-1.5 flex flex-wrap gap-1">
+                                {tags.map((tag) => (
+                                  <TagBadge key={tag.id} tag={tag} />
+                                ))}
+                              </div>
                             )}
-                          >
-                            {`${a.brand ?? ""} ${a.model ?? ""}`.trim() || a.serial_number}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {assetTypeLabel[a.asset_type]} · Série {a.serial_number}
-                            {a.patrimony ? ` · Pat. ${a.patrimony}` : ""}
-                          </p>
-                          {tags.length > 0 && (
-                            <div className="mt-1.5 flex flex-wrap gap-1">
-                              {tags.map((tag) => (
-                                <TagBadge key={tag.id} tag={tag} />
-                              ))}
-                            </div>
-                          )}
+                          </div>
                         </div>
-                      </div>
-                    </TableCell>
-                    {columns.isVisible("usuario") && (
-                      <TableCell className="text-[13px]">
-                        {holder ? (
-                          holder.full_name
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
+                      </TableCell>
+                      {columns.isVisible("usuario") && (
+                        <TableCell className="text-[13px]">
+                          {holder ? (
+                            holder.full_name
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                      )}
+                      {columns.isVisible("fornecedor") && (
+                        <TableCell className="text-[13px]">{a.supplier ?? "—"}</TableCell>
+                      )}
+                      {columns.isVisible("locacao") && (
+                        <TableCell className="num text-xs text-muted-foreground">
+                          {a.lease_end ? `até ${formatDate(a.lease_end)}` : "—"}
+                        </TableCell>
+                      )}
+                      {columns.isVisible("checkin") && (
+                        <TableCell className="num text-xs text-muted-foreground">
+                          {a.intune_last_sync ? formatDate(a.intune_last_sync) : "—"}
+                        </TableCell>
+                      )}
+                      {columns.isVisible("ultima_localidade") && (
+                        <TableCell className="max-w-40 truncate text-[13px]">
+                          {a.last_seen_location ?? "—"}
+                        </TableCell>
+                      )}
+                      {columns.isVisible("protecao") && (
+                        <TableCell>
+                          <BitdefenderStatus installed={a.bitdefender_installed} />
+                        </TableCell>
+                      )}
+                      {columns.isVisible("situacao") && (
+                        <TableCell>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <StatusBadge value={a.status} />
+                            <SourceBadge intuneDeviceId={a.intune_device_id} />
+                          </div>
+                        </TableCell>
+                      )}
+                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                        {canEdit && (
+                          <RowActions
+                            deleteLabel={archived ? "Restaurar" : "Arquivar"}
+                            onEdit={() => {
+                              setPanelMode("edit");
+                              setSelectedId(a.id);
+                            }}
+                            onDelete={() =>
+                              setDeleteTarget({
+                                id: a.id,
+                                title:
+                                  `${a.brand ?? ""} ${a.model ?? ""}`.trim() || a.serial_number,
+                                serial: a.serial_number,
+                              })
+                            }
+                            extra={[
+                              {
+                                label: "Etiquetas",
+                                icon: Tags,
+                                onSelect: () => setTagTarget([a.id]),
+                              },
+                              {
+                                label: "Gerar QR Code",
+                                icon: QrCode,
+                                onSelect: () => generateQr([a]),
+                              },
+                            ]}
+                          />
                         )}
                       </TableCell>
-                    )}
-                    {columns.isVisible("fornecedor") && (
-                      <TableCell className="text-[13px]">{a.supplier ?? "—"}</TableCell>
-                    )}
-                    {columns.isVisible("locacao") && (
-                      <TableCell className="num text-xs text-muted-foreground">
-                        {a.lease_end ? `até ${formatDate(a.lease_end)}` : "—"}
-                      </TableCell>
-                    )}
-                    {columns.isVisible("checkin") && (
-                      <TableCell className="num text-xs text-muted-foreground">
-                        {a.intune_last_sync ? formatDate(a.intune_last_sync) : "—"}
-                      </TableCell>
-                    )}
-                    {columns.isVisible("ultima_localidade") && (
-                      <TableCell className="max-w-40 truncate text-[13px]">
-                        {a.last_seen_location ?? "—"}
-                      </TableCell>
-                     )}
-                     {columns.isVisible("protecao") && (
-                       <TableCell>
-                         <BitdefenderStatus installed={a.bitdefender_installed} />
-                       </TableCell>
-                     )}
-                     {columns.isVisible("situacao") && (
-                      <TableCell>
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <StatusBadge value={a.status} />
-                          <SourceBadge intuneDeviceId={a.intune_device_id} />
-                        </div>
-                      </TableCell>
-                    )}
-                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                      {canEdit && (
-                        <RowActions
-                          onEdit={() => {
-                            setPanelMode("edit");
-                            setSelectedId(a.id);
-                          }}
-                          onDelete={() =>
-                            setDeleteTarget({
-                              id: a.id,
-                              title:
-                                `${a.brand ?? ""} ${a.model ?? ""}`.trim() || a.serial_number,
-                              serial: a.serial_number,
-                            })
-                          }
-                          extra={[
-                            {
-                              label: "Etiquetas",
-                              icon: Tags,
-                              onSelect: () => setTagTarget([a.id]),
-                            },
-                            {
-                              label: "Gerar QR Code",
-                              icon: QrCode,
-                              onSelect: () => generateQr([a]),
-                            },
-                          ]}
-                        />
-                      )}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
         )}
 
         <TablePagination
@@ -731,7 +739,7 @@ function Ativos() {
 
       <BulkActionBar
         count={checked.size}
-        total={filtered.length}
+        total={table.total}
         noun="equipamentos"
         onClear={() => setChecked(new Set())}
       >
@@ -752,7 +760,7 @@ function Ativos() {
         </Button>
         {canEdit && (
           <Button size="sm" variant="destructive" onClick={() => setBulkDelete(true)}>
-            <Trash2 className="mr-1.5 size-4" /> Excluir
+            <Trash2 className="mr-1.5 size-4" /> {archived ? "Restaurar" : "Arquivar"}
           </Button>
         )}
       </BulkActionBar>
@@ -767,11 +775,11 @@ function Ativos() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="font-display">
-              Excluir {checked.size} equipamentos?
+              {archived ? "Restaurar" : "Arquivar"} {checked.size} equipamentos?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Os vínculos, termos e documentos desses equipamentos também serão apagados.
-              Equipamentos com vínculo ativo precisam da devolução registrada antes.
+              O histórico, os termos e os documentos serão preservados. Equipamentos com vínculo
+              ativo precisam da devolução registrada antes.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -783,14 +791,14 @@ function Ativos() {
                 removeSelected.mutate();
               }}
             >
-              Excluir definitivamente
+              Confirmar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-
       <AssetDetailPanel
+        key={selectedId}
         assetId={selectedId}
         initialMode={panelMode}
         onOpenChange={(v) => {
@@ -810,10 +818,12 @@ function Ativos() {
       <AlertDialog open={!!deleteTarget} onOpenChange={(v) => !v && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="font-display">Excluir equipamento?</AlertDialogTitle>
+            <AlertDialogTitle className="font-display">
+              {archived ? "Restaurar" : "Arquivar"} equipamento?
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              {deleteTarget?.title} · série {deleteTarget?.serial}. O histórico de vínculos, termos
-              e documentos deste equipamento também serão apagados. Esta ação não pode ser desfeita.
+              {deleteTarget?.title} · série {deleteTarget?.serial}. O histórico, os termos e os
+              documentos serão preservados.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -825,7 +835,7 @@ function Ativos() {
                 removeAsset.mutate();
               }}
             >
-              Excluir definitivamente
+              Confirmar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -841,12 +851,12 @@ function Ativos() {
           </DialogHeader>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label>Tipo</Label>
+              <Label htmlFor={"qa-ativosindextsx-32325-"}>Tipo</Label>
               <Select
                 value={form.asset_type}
                 onValueChange={(v) => setForm({ ...form, asset_type: v })}
               >
-                <SelectTrigger>
+                <SelectTrigger id={"qa-ativosindextsx-32325-"}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -859,17 +869,19 @@ function Ativos() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Situação</Label>
+              <Label htmlFor={"qa-ativosindextsx-32960-"}>Situação</Label>
               <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
-                <SelectTrigger>
+                <SelectTrigger id={"qa-ativosindextsx-32960-"}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {Object.entries(assetStatusLabel).map(([v, l]) => (
-                    <SelectItem key={v} value={v}>
-                      {l}
-                    </SelectItem>
-                  ))}
+                  {Object.entries(assetStatusLabel)
+                    .filter(([v]) => v !== "em_uso")
+                    .map(([v, l]) => (
+                      <SelectItem key={v} value={v}>
+                        {l}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -889,8 +901,9 @@ function Ativos() {
               ] as const
             ).map(([key, label]) => (
               <div key={key} className="space-y-2">
-                <Label>{label}</Label>
+                <Label htmlFor={"qa-ativosindextsx-34176-" + encodeURIComponent(String(label))}>{label}</Label>
                 <Input
+                  id={"qa-ativosindextsx-34176-" + encodeURIComponent(String(label))}
                   value={form[key]}
                   inputMode={key === "monthly_cost" ? "decimal" : undefined}
                   onChange={(e) => setForm({ ...form, [key]: e.target.value })}
@@ -900,7 +913,9 @@ function Ativos() {
             <div className="flex items-center justify-between gap-3 rounded-lg border p-3 sm:col-span-2">
               <div>
                 <Label htmlFor="new-bitdefender">Bitdefender instalado</Label>
-                <p className="text-xs text-muted-foreground">Estado detectado no último sincronismo.</p>
+                <p className="text-xs text-muted-foreground">
+                  Estado detectado no último sincronismo.
+                </p>
               </div>
               <Switch
                 id="new-bitdefender"
@@ -909,24 +924,27 @@ function Ativos() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Início da locação</Label>
+              <Label htmlFor={"qa-ativosindextsx-35140-"}>Início da locação</Label>
               <Input
+                id={"qa-ativosindextsx-35140-"}
                 type="date"
                 value={form.lease_start}
                 onChange={(e) => setForm({ ...form, lease_start: e.target.value })}
               />
             </div>
             <div className="space-y-2">
-              <Label>Fim da locação</Label>
+              <Label htmlFor={"qa-ativosindextsx-35437-"}>Fim da locação</Label>
               <Input
+                id={"qa-ativosindextsx-35437-"}
                 type="date"
                 value={form.lease_end}
                 onChange={(e) => setForm({ ...form, lease_end: e.target.value })}
               />
             </div>
             <div className="space-y-2 sm:col-span-2">
-              <Label>Observações</Label>
+              <Label htmlFor={"qa-ativosindextsx-35741-"}>Observações</Label>
               <Textarea
+                id={"qa-ativosindextsx-35741-"}
                 value={form.notes}
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
               />

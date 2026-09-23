@@ -1,3 +1,5 @@
+import { useRemoteList } from "@/hooks/useRemoteList";
+import { QueryError } from "@/components/query-error";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -74,17 +76,23 @@ function Inventario() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: "", location: "todas", asset_type: "todos" });
 
-  const { data: sessions, isLoading } = useQuery({
-    queryKey: ["inventory-sessions"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("inventory_sessions")
-        .select("id,name,scope,status,created_at,closed_at,inventory_checks(count)")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return (data ?? []) as unknown as Session[];
+  const [term, setTerm] = useState("");
+  const list = useRemoteList({
+    view: "inventory_sessions_list",
+    key: "inventory-sessions",
+    term,
+    defaultSort: "abertura",
+    defaultSortDir: "desc",
+    columns: {
+      nome: "name",
+      abertura: "created_at",
+      situacao: "status",
+      escopo: "scope_text",
+      conferidos: "checks_count",
     },
   });
+  const sessions = list.rows as unknown as Session[];
+  const { isLoading, table } = list;
 
   const { data: locations } = useQuery({
     queryKey: ["locations"],
@@ -97,23 +105,6 @@ function Inventario() {
       if (error) throw error;
       return data;
     },
-  });
-
-  const table = useTableState(sessions, {
-    key: "inventario",
-    accessors: {
-      nome: (s) => s.name,
-      escopo: (s) =>
-        s.scope?.["location"] || s.scope?.["asset_type"]
-          ? `${s.scope?.["location"] ?? "Todas as localidades"} · ${
-              s.scope?.["asset_type"] ? assetTypeLabel[s.scope["asset_type"]!] : "Todos os tipos"
-            }`
-          : "Todo o parque",
-      conferidos: (s) => s.inventory_checks?.[0]?.count ?? 0,
-      abertura: (s) => s.created_at,
-      situacao: (s) => s.status,
-    },
-    defaultSort: { key: "abertura", dir: "desc" },
   });
 
   const create = useMutation({
@@ -148,6 +139,13 @@ function Inventario() {
 
   return (
     <div>
+      {list.isError && <QueryError retry={list.refetch} />}
+      <Input
+        aria-label="Buscar conferência"
+        placeholder="Buscar conferência"
+        value={term}
+        onChange={(e) => setTerm(e.target.value)}
+      />
       <PageHeader
         breadcrumb="Inventário"
         title="Inventário físico"
@@ -201,7 +199,7 @@ function Inventario() {
                 </TableCell>
               </TableRow>
             )}
-            {table.pageRows.map((s) => (
+            {(table.pageRows as unknown as Session[]).map((s) => (
               <TableRow key={s.id}>
                 <TableCell className="text-sm">
                   <Link
@@ -269,20 +267,21 @@ function Inventario() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Nome</Label>
+              <Label htmlFor={"qa-inventariotsx-9151-"}>Nome</Label>
               <Input
+                id={"qa-inventariotsx-9151-"}
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 placeholder="Ex.: Sede SP — setembro/2026"
               />
             </div>
             <div className="space-y-2">
-              <Label>Localidade</Label>
+              <Label htmlFor={"qa-inventariotsx-9452-"}>Localidade</Label>
               <Select
                 value={form.location}
                 onValueChange={(v) => setForm({ ...form, location: v })}
               >
-                <SelectTrigger>
+                <SelectTrigger id={"qa-inventariotsx-9452-"}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -296,12 +295,12 @@ function Inventario() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Tipo de equipamento</Label>
+              <Label htmlFor={"qa-inventariotsx-10164-"}>Tipo de equipamento</Label>
               <Select
                 value={form.asset_type}
                 onValueChange={(v) => setForm({ ...form, asset_type: v })}
               >
-                <SelectTrigger>
+                <SelectTrigger id={"qa-inventariotsx-10164-"}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

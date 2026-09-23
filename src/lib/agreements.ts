@@ -1,4 +1,4 @@
-import { assetTypeLabel } from "./format";
+import { assetTypeLabel, formatDate } from "./format";
 
 type EmployeeLike = {
   full_name: string;
@@ -39,9 +39,7 @@ export function renderAgreement(
     ativo_imei: asset.imei || "não aplicável",
     fornecedor: asset.supplier || "Simpress",
     condicao_entrega: extra.deliveryCondition || "Novo / em perfeito estado",
-    data_entrega: extra.deliveryDate
-      ? new Date(extra.deliveryDate).toLocaleDateString("pt-BR")
-      : today,
+    data_entrega: extra.deliveryDate ? formatDate(extra.deliveryDate) : today,
     data_hoje: today,
   };
 

@@ -10,7 +10,7 @@ export async function logAudit(params: {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return;
-  await supabase.from("audit_log").insert({
+  const { error } = await supabase.from("audit_log").insert({
     actor_id: user.id,
     actor_email: user.email ?? null,
     action: params.action,
@@ -18,4 +18,8 @@ export async function logAudit(params: {
     entity_id: params.entityId ?? null,
     details: (params.details ?? {}) as never,
   });
+  if (error)
+    throw new Error(
+      "A operação foi gravada, mas a auditoria falhou. Atualize a tela antes de tentar novamente.",
+    );
 }

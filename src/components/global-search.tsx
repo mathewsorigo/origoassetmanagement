@@ -1,3 +1,4 @@
+import { escapeLike, normalizeSearch } from "@/lib/query";
 import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -31,25 +32,29 @@ export function GlobalSearch() {
 
   const query = term.trim();
 
-  const { data } = useQuery({
+  const { data, isFetching, isError, refetch } = useQuery({
     queryKey: ["global-search", query],
     enabled: open && query.length >= 2,
     queryFn: async () => {
-      const like = `%${query}%`;
+      const like = `%${escapeLike(normalizeSearch(query))}%`;
       const [assets, employees] = await Promise.all([
         supabase
-          .from("assets")
+          .from("assets_list")
           .select("id,brand,model,serial_number,patrimony,asset_type,status")
-          .or(
-            `serial_number.ilike.${like},brand.ilike.${like},model.ilike.${like},patrimony.ilike.${like}`,
-          )
+          .is("archived_at", null)
+          .ilike("search_text", like)
+          .order("serial_number")
           .limit(6),
         supabase
-          .from("employees")
+          .from("employees_list")
           .select("id,full_name,email,department")
-          .or(`full_name.ilike.${like},email.ilike.${like}`)
+          .is("archived_at", null)
+          .ilike("search_text", like)
+          .order("full_name")
           .limit(6),
       ]);
+      if (assets.error) throw assets.error;
+      if (employees.error) throw employees.error;
       return {
         assets: assets.data ?? [],
         employees: employees.data ?? [],
@@ -77,15 +82,35 @@ export function GlobalSearch() {
         </kbd>
       </button>
 
-      <CommandDialog open={open} onOpenChange={setOpen}>
+      <CommandDialog shouldFilter={false} open={open} onOpenChange={setOpen}>
         <CommandInput
           placeholder="Busque equipamentos, colaboradores…"
           value={term}
           onValueChange={setTerm}
         />
         <CommandList>
+          {isFetching && (
+            <p role="status" className="p-3 text-sm">
+              Buscando…
+            </p>
+          )}
+          {isError && (
+            <button className="p-3 text-sm" onClick={() => void refetch()}>
+              Não foi possível buscar. Tentar novamente
+            </button>
+          )}
+          {query.length >= 2 &&
+            !isFetching &&
+            !isError &&
+            data &&
+            !data.assets.length &&
+            !data.employees.length && <p className="p-3 text-sm">Nada encontrado.</p>}
           <CommandEmpty>
-            {query.length < 2 ? "Digite ao menos 2 caracteres." : "Nada encontrado."}
+            {query.length < 2
+              ? "Digite ao menos 2 caracteres."
+              : isFetching || isError
+                ? ""
+                : "Nada encontrado."}
           </CommandEmpty>
 
           {(data?.assets.length ?? 0) > 0 && (
@@ -125,6 +150,20 @@ export function GlobalSearch() {
             </CommandGroup>
           )}
 
+          {query.length >= 2 && (
+            <CommandGroup heading="Ver todos os resultados">
+              <CommandItem
+                onSelect={() => go(() => navigate({ to: "/ativos", search: { busca: query } }))}
+              >
+                Ver todos os equipamentos
+              </CommandItem>
+              <CommandItem
+                onSelect={() => go(() => navigate({ to: "/pessoas", search: { busca: query } }))}
+              >
+                Ver todos os colaboradores
+              </CommandItem>
+            </CommandGroup>
+          )}
           <CommandGroup heading="Ir para">
             <CommandItem value="ir-ativos" onSelect={() => go(() => navigate({ to: "/ativos" }))}>
               <Laptop className="mr-2 size-4" /> Ativos

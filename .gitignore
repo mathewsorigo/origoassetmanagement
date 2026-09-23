@@ -16,6 +16,11 @@ dist-ssr
 .nitro
 *.local
 
+# Local database exports and restores
+*.backup
+*.dump
+.local-data/
+
 # Wrangler / Cloudflare
 .wrangler/
 .dev.vars

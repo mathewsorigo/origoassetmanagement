@@ -92,6 +92,20 @@
       "when": 1790186886456,
       "tag": "0012_enable_realtime_for_remaining_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1790192811547,
+      "tag": "0013_consistent_asset_workflows",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1790194853171,
+      "tag": "0014_qa_consistency",
+      "breakpoints": true
     }
   ]
 }

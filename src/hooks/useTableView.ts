@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
-export type ColumnDef = { id: string; label: string; locked?: boolean };
+export type ColumnDef = { id: string; label: string; locked?: boolean; defaultHidden?: boolean };
 
 function read<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
@@ -44,10 +44,17 @@ export function useViewMode(key: string, initial: "table" | "cards" = "table") {
 export function useColumns(key: string, columns: ColumnDef[]) {
   const storageKey = `table-columns:${key}`;
   const all = columns.map((c) => c.id);
-  const [hidden, setHidden] = useState<string[]>([]);
+  const [hidden, setHidden] = useState<string[]>(
+    columns.filter((c) => c.defaultHidden).map((c) => c.id),
+  );
 
   useEffect(() => {
-    setHidden(read<string[]>(storageKey, []));
+    setHidden(
+      read<string[]>(
+        storageKey,
+        columns.filter((c) => c.defaultHidden).map((c) => c.id),
+      ),
+    );
   }, [storageKey]);
 
   const toggle = useCallback(

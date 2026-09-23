@@ -1,3 +1,4 @@
+import { QueryError } from "@/components/query-error";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
@@ -51,7 +52,12 @@ export function AllowedEmailsCard() {
   const [roles, setRoles] = useState<AdminRole[]>(["colaborador"]);
   const [removeTarget, setRemoveTarget] = useState<AllowedEmail | null>(null);
 
-  const { data: rows, isLoading } = useQuery({
+  const {
+    data: rows,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ["allowed-emails"],
     queryFn: () => listFn(),
     staleTime: 60 * 1000,
@@ -87,6 +93,7 @@ export function AllowedEmailsCard() {
     onError: fail,
   });
 
+  if (isError) return <QueryError retry={refetch} />;
   return (
     <Card className="mt-6 p-4">
       <div className="mb-3 space-y-1">
@@ -96,15 +103,18 @@ export function AllowedEmailsCard() {
         </h2>
         <CardDescription>
           Só quem estiver nesta lista consegue acessar, e apenas com e-mail @{ALLOWED_EMAIL_DOMAIN}.
-          Qualquer outra conta é recusada no momento do login, mesmo pelo botão da Microsoft.
-          Libere o e-mail <strong>antes</strong> de pedir para a pessoa entrar: quem tentar sem
-          liberação recebe um aviso na tela de login e aparece aqui em "Tentativas recusadas".
+          Qualquer outra conta é recusada no momento do login, mesmo pelo botão da Microsoft. Libere
+          o e-mail <strong>antes</strong> de pedir para a pessoa entrar: quem tentar sem liberação
+          recebe um aviso na tela de login e aparece aqui em "Tentativas recusadas".
         </CardDescription>
       </div>
 
       <div className="mb-5 grid gap-3 rounded-lg border border-border/70 bg-secondary/30 p-3 md:grid-cols-[1.4fr_1fr_auto] md:items-end">
         <div className="space-y-1.5">
-          <Label htmlFor="allow-email" className="text-xs uppercase tracking-wider text-muted-foreground">
+          <Label
+            htmlFor="allow-email"
+            className="text-xs uppercase tracking-wider text-muted-foreground"
+          >
             E-mail corporativo
           </Label>
           <Input
@@ -116,7 +126,10 @@ export function AllowedEmailsCard() {
           />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="allow-name" className="text-xs uppercase tracking-wider text-muted-foreground">
+          <Label
+            htmlFor="allow-name"
+            className="text-xs uppercase tracking-wider text-muted-foreground"
+          >
             Nome (opcional)
           </Label>
           <Input
@@ -177,9 +190,7 @@ export function AllowedEmailsCard() {
               <TableRow key={r.id}>
                 <TableCell className="text-sm">
                   <p className="font-medium">{r.email}</p>
-                  {r.full_name && (
-                    <p className="text-xs text-muted-foreground">{r.full_name}</p>
-                  )}
+                  {r.full_name && <p className="text-xs text-muted-foreground">{r.full_name}</p>}
                 </TableCell>
                 <TableCell>
                   <div className="flex flex-wrap gap-1">
@@ -232,7 +243,8 @@ export function AllowedEmailsCard() {
             <AlertDialogTitle>Remover liberação?</AlertDialogTitle>
             <AlertDialogDescription>
               {removeTarget?.email} não conseguirá mais criar acesso pelo login da Microsoft. Contas
-              já criadas continuam existindo — para bloquear de vez, desative a conta na lista acima.
+              já criadas continuam existindo — para bloquear de vez, desative a conta na lista
+              acima.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

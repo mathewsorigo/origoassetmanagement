@@ -1,3 +1,5 @@
+import { parseMoney, validatePeriod } from "@/lib/validation";
+import { QueryError } from "@/components/query-error";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
@@ -121,7 +123,13 @@ function Contratos() {
     asset_ids: [] as string[],
   });
 
-  const { data: assets, isLoading } = useQuery({
+  const [contractDirty, setContractDirty] = useState<string[]>([]);
+  const {
+    data: assets,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ["contratos-assets"],
     queryFn: async () => {
       const CHUNK = 1000;
@@ -132,6 +140,7 @@ function Contratos() {
           .select(
             "id,serial_number,brand,model,asset_type,status,supplier,contract_number,lease_start,lease_end,monthly_cost",
           )
+          .is("archived_at", null)
           .order("id")
           .range(from, from + CHUNK - 1);
         if (error) throw error;
@@ -146,7 +155,9 @@ function Contratos() {
   const groups = useMemo<ContractGroup[]>(() => {
     const map = new Map<string, AssetRow[]>();
     for (const asset of assets ?? []) {
-      const key = asset.contract_number?.trim() || "sem-contrato";
+      const key = asset.contract_number?.trim()
+        ? JSON.stringify([asset.supplier?.trim() ?? "", asset.contract_number.trim()])
+        : "sem-contrato";
       const list = map.get(key) ?? [];
       list.push(asset);
       map.set(key, list);
@@ -168,7 +179,7 @@ function Contratos() {
               : "vigente";
       return {
         key,
-        contract: key === "sem-contrato" ? "Sem número de contrato" : key,
+        contract: key === "sem-contrato" ? "Sem número de contrato" : list[0]!.contract_number!,
         supplier: list[0]?.supplier?.trim() || "Simpress",
         total: list.length,
         emUso: list.filter((a) => a.status === "em_uso").length,
@@ -219,12 +230,24 @@ function Contratos() {
   }
 
   function startContract(group?: ContractGroup) {
+    setContractDirty([]);
     setContractForm({
-      contract_number: group?.contract ?? "",
+      contract_number: group?.key === "sem-contrato" ? "" : (group?.contract ?? ""),
       supplier: group?.supplier ?? "Simpress",
-      lease_start: group?.leaseStart?.slice(0, 10) ?? "",
-      lease_end: group?.leaseEnd?.slice(0, 10) ?? "",
-      monthly_cost: group?.assets[0]?.monthly_cost != null ? String(group.assets[0].monthly_cost) : "",
+      lease_start:
+        group && new Set(group.assets.map((a) => a.lease_start)).size > 1
+          ? ""
+          : (group?.leaseStart?.slice(0, 10) ?? ""),
+      lease_end:
+        group && new Set(group.assets.map((a) => a.lease_end)).size > 1
+          ? ""
+          : (group?.leaseEnd?.slice(0, 10) ?? ""),
+      monthly_cost:
+        group && new Set(group.assets.map((a) => a.monthly_cost)).size > 1
+          ? ""
+          : group?.assets[0]?.monthly_cost != null
+            ? String(group.assets[0].monthly_cost)
+            : "",
       asset_ids: group?.assets.map((asset) => asset.id) ?? [],
     });
     setEditContract(group ?? "new");
@@ -233,32 +256,37 @@ function Contratos() {
   const saveContract = useMutation({
     mutationFn: async () => {
       if (!contractForm.contract_number.trim()) throw new Error("Informe o número do contrato.");
-      if (contractForm.asset_ids.length === 0) throw new Error("Selecione ao menos um equipamento.");
-      const previousNumber = editContract !== "new" ? editContract?.key : null;
+      if (contractForm.asset_ids.length === 0)
+        throw new Error("Selecione ao menos um equipamento.");
+      const previousNumber = editContract !== "new" ? editContract?.contract : null;
       const payload = {
         contract_number: contractForm.contract_number.trim(),
         supplier: contractForm.supplier.trim() || null,
         lease_start: contractForm.lease_start || null,
         lease_end: contractForm.lease_end || null,
-        monthly_cost: contractForm.monthly_cost ? Number(contractForm.monthly_cost) : null,
+        monthly_cost: parseMoney(contractForm.monthly_cost),
       };
-      if (previousNumber) {
-        const previousAssets = editContract && editContract !== "new" ? editContract.assets : [];
-        const removed = previousAssets
-          .filter((asset: AssetRow) => !contractForm.asset_ids.includes(asset.id))
-          .map((asset: AssetRow) => asset.id);
-        if (removed.length) {
-          const { error } = await supabase.from("assets").update({ contract_number: null, lease_start: null, lease_end: null }).in("id", removed);
-          if (error) throw error;
-        }
-      }
-      const { error } = await supabase.from("assets").update(payload).in("id", contractForm.asset_ids);
-      if (error) throw error;
-      await logAudit({
-        action: previousNumber ? "editar_contrato" : "criar_contrato",
-        entity: "contracts",
-        details: { anterior: previousNumber, depois: payload, asset_ids: contractForm.asset_ids },
+      const patch = Object.fromEntries(
+        Object.entries(payload).filter(
+          ([key]) =>
+            editContract === "new" ||
+            ["contract_number", "supplier"].includes(key) ||
+            contractDirty.includes(key),
+        ),
+      );
+      const previousAssets = editContract && editContract !== "new" ? editContract.assets : [];
+      if (editContract === "new") validatePeriod(contractForm.lease_start, contractForm.lease_end);
+      const { error } = await supabase.rpc("qa_transaction", {
+        p_action: "contract",
+        p_data: {
+          ids: contractForm.asset_ids,
+          removed: previousAssets
+            .filter((a) => !contractForm.asset_ids.includes(a.id))
+            .map((a) => a.id),
+          patch,
+        },
       });
+      if (error) throw error;
     },
     onSuccess: () => {
       toast.success(editContract === "new" ? "Contrato criado." : "Contrato atualizado.");
@@ -273,12 +301,14 @@ function Contratos() {
     mutationFn: async () => {
       if (!deleteContract) return;
       const ids = deleteContract.assets.map((asset) => asset.id);
-      const { error } = await supabase
-        .from("assets")
-        .update({ contract_number: null, lease_start: null, lease_end: null, monthly_cost: null })
-        .in("id", ids);
+      const { error } = await supabase.rpc("qa_transaction", {
+        p_action: "contract",
+        p_data: {
+          ids,
+          patch: { contract_number: null, lease_start: null, lease_end: null, monthly_cost: null },
+        },
+      });
       if (error) throw error;
-      await logAudit({ action: "remover_contrato", entity: "contracts", details: { contract_number: deleteContract.contract, asset_ids: ids } });
     },
     onSuccess: () => {
       toast.success("Contrato removido dos equipamentos.");
@@ -291,11 +321,18 @@ function Contratos() {
 
   return (
     <div>
+      {isError && <QueryError retry={refetch} />}
       <PageHeader
         breadcrumb="Contratos"
         title="Contratos e locações"
         description="Agrupe os equipamentos por contrato Simpress, acompanhe vencimentos e gere a lista de devolução."
-        actions={canEdit ? <Button onClick={() => startContract()}><Plus className="mr-2 size-4" /> Novo contrato</Button> : undefined}
+        actions={
+          canEdit ? (
+            <Button onClick={() => startContract()}>
+              <Plus className="mr-2 size-4" /> Novo contrato
+            </Button>
+          ) : undefined
+        }
       />
 
       <div className="mb-4 flex flex-wrap gap-2">
@@ -313,7 +350,7 @@ function Contratos() {
             {f.label}
             <span className="ml-1.5 text-[10px] opacity-70">
               {f.key === "todas"
-                ? groups.length
+                ? groups.filter((g) => g.key !== "sem-contrato").length
                 : f.key === "vencidas"
                   ? groups.filter((g) => g.situacao === "vencida").length
                   : groups.filter(
@@ -324,6 +361,11 @@ function Contratos() {
         ))}
       </div>
 
+      <p className="mb-3 text-sm text-muted-foreground">
+        {groups.filter((g) => g.key !== "sem-contrato").length} contratos cadastrados ·{" "}
+        {groups.find((g) => g.key === "sem-contrato")?.total ?? 0} equipamentos sem contrato. Campos
+        com valores diferentes ficam vazios na edição e são preservados até você alterá-los.
+      </p>
       <Card className="overflow-x-auto p-4">
         <Table>
           <TableHeader>
@@ -404,10 +446,20 @@ function Contratos() {
                     </Button>
                     {canEdit && g.key !== "sem-contrato" && (
                       <>
-                        <Button variant="ghost" size="icon" aria-label="Editar contrato" onClick={() => startContract(g)}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label="Editar contrato"
+                          onClick={() => startContract(g)}
+                        >
                           <Pencil className="size-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" aria-label="Remover contrato" onClick={() => setDeleteContract(g)}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label="Remover contrato"
+                          onClick={() => setDeleteContract(g)}
+                        >
                           <Trash2 className="size-4 text-destructive" />
                         </Button>
                       </>
@@ -420,7 +472,7 @@ function Contratos() {
         </Table>
         <TablePagination
           className="-mx-4 mt-3 px-4"
-          noun="contratos"
+          noun="grupos"
           total={table.total}
           rangeStart={table.rangeStart}
           rangeEnd={table.rangeEnd}
@@ -479,15 +531,74 @@ function Contratos() {
       <Dialog open={!!editContract} onOpenChange={(value) => !value && setEditContract(null)}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{editContract === "new" ? "Novo contrato" : "Editar contrato"}</DialogTitle>
-            <DialogDescription>Defina os dados e os equipamentos que pertencem a este contrato.</DialogDescription>
+            <DialogTitle>
+              {editContract === "new" ? "Novo contrato" : "Editar contrato"}
+            </DialogTitle>
+            <DialogDescription>
+              Defina os dados e os equipamentos que pertencem a este contrato. Ao editar, somente os
+              campos que você alterar serão aplicados. Custos e datas diferentes permanecem
+              individuais.
+            </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2"><Label>Número do contrato</Label><Input value={contractForm.contract_number} onChange={(event) => setContractForm({ ...contractForm, contract_number: event.target.value })} /></div>
-            <div className="space-y-2"><Label>Fornecedor</Label><Input value={contractForm.supplier} onChange={(event) => setContractForm({ ...contractForm, supplier: event.target.value })} /></div>
-            <div className="space-y-2"><Label>Início</Label><Input type="date" value={contractForm.lease_start} onChange={(event) => setContractForm({ ...contractForm, lease_start: event.target.value })} /></div>
-            <div className="space-y-2"><Label>Fim</Label><Input type="date" value={contractForm.lease_end} onChange={(event) => setContractForm({ ...contractForm, lease_end: event.target.value })} /></div>
-            <div className="space-y-2 sm:col-span-2"><Label>Custo mensal por equipamento</Label><Input inputMode="decimal" value={contractForm.monthly_cost} onChange={(event) => setContractForm({ ...contractForm, monthly_cost: event.target.value })} /></div>
+            <div className="space-y-2">
+              <Label htmlFor={"qa-contratostsx-19623-"}>Número do contrato</Label>
+              <Input
+                id={"qa-contratostsx-19623-"}
+                value={contractForm.contract_number}
+                onChange={(event) => (
+                  setContractDirty((d) => [...d, "contract_number"]),
+                  setContractForm({ ...contractForm, contract_number: event.target.value })
+                )}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={"qa-contratostsx-20017-"}>Fornecedor</Label>
+              <Input
+                id={"qa-contratostsx-20017-"}
+                value={contractForm.supplier}
+                onChange={(event) => (
+                  setContractDirty((d) => [...d, "supplier"]),
+                  setContractForm({ ...contractForm, supplier: event.target.value })
+                )}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={"qa-contratostsx-20382-"}>Início</Label>
+              <Input
+                id={"qa-contratostsx-20382-"}
+                type="date"
+                value={contractForm.lease_start}
+                onChange={(event) => (
+                  setContractDirty((d) => [...d, "lease_start"]),
+                  setContractForm({ ...contractForm, lease_start: event.target.value })
+                )}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={"qa-contratostsx-20780-"}>Fim</Label>
+              <Input
+                id={"qa-contratostsx-20780-"}
+                type="date"
+                value={contractForm.lease_end}
+                onChange={(event) => (
+                  setContractDirty((d) => [...d, "lease_end"]),
+                  setContractForm({ ...contractForm, lease_end: event.target.value })
+                )}
+              />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor={"qa-contratostsx-21183-"}>Custo mensal por equipamento</Label>
+              <Input
+                id={"qa-contratostsx-21183-"}
+                inputMode="decimal"
+                value={contractForm.monthly_cost}
+                onChange={(event) => (
+                  setContractDirty((d) => [...d, "monthly_cost"]),
+                  setContractForm({ ...contractForm, monthly_cost: event.target.value })
+                )}
+              />
+            </div>
           </div>
           <div className="space-y-2">
             <Label>Equipamentos</Label>
@@ -495,31 +606,72 @@ function Contratos() {
               {(assets ?? []).map((asset) => {
                 const checked = contractForm.asset_ids.includes(asset.id);
                 return (
-                  <label key={asset.id} className="flex cursor-pointer items-center gap-3 p-3 text-sm hover:bg-muted/50">
-                    <Checkbox checked={checked} onCheckedChange={() => setContractForm((current) => ({ ...current, asset_ids: checked ? current.asset_ids.filter((id) => id !== asset.id) : [...current.asset_ids, asset.id] }))} />
-                    <span className="min-w-0 flex-1 truncate">{asset.serial_number} · {`${asset.brand ?? ""} ${asset.model ?? ""}`.trim() || assetTypeLabel[asset.asset_type]}</span>
-                    {asset.contract_number && asset.contract_number !== (editContract === "new" ? "" : editContract?.key) && <span className="text-xs text-muted-foreground">{asset.contract_number}</span>}
+                  <label
+                    key={asset.id}
+                    className="flex cursor-pointer items-center gap-3 p-3 text-sm hover:bg-muted/50"
+                  >
+                    <Checkbox
+                      checked={checked}
+                      onCheckedChange={() =>
+                        setContractForm((current) => ({
+                          ...current,
+                          asset_ids: checked
+                            ? current.asset_ids.filter((id) => id !== asset.id)
+                            : [...current.asset_ids, asset.id],
+                        }))
+                      }
+                    />
+                    <span className="min-w-0 flex-1 truncate">
+                      {asset.serial_number} ·{" "}
+                      {`${asset.brand ?? ""} ${asset.model ?? ""}`.trim() ||
+                        assetTypeLabel[asset.asset_type]}
+                    </span>
+                    {asset.contract_number &&
+                      asset.contract_number !==
+                        (editContract === "new" ? "" : editContract?.key) && (
+                        <span className="text-xs text-muted-foreground">
+                          {asset.contract_number}
+                        </span>
+                      )}
                   </label>
                 );
               })}
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditContract(null)}>Cancelar</Button>
-            <Button disabled={saveContract.isPending} onClick={() => saveContract.mutate()}>Salvar contrato</Button>
+            <Button variant="outline" onClick={() => setEditContract(null)}>
+              Cancelar
+            </Button>
+            <Button disabled={saveContract.isPending} onClick={() => saveContract.mutate()}>
+              Salvar contrato
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={!!deleteContract} onOpenChange={(value) => !value && setDeleteContract(null)}>
+      <AlertDialog
+        open={!!deleteContract}
+        onOpenChange={(value) => !value && setDeleteContract(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Remover contrato?</AlertDialogTitle>
-            <AlertDialogDescription>Os dados do contrato serão retirados de {deleteContract?.total ?? 0} equipamentos. Os ativos não serão excluídos.</AlertDialogDescription>
+            <AlertDialogDescription>
+              Os dados do contrato serão retirados de {deleteContract?.total ?? 0} equipamentos. Os
+              ativos não serão excluídos.
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction disabled={removeContract.isPending} onClick={(event) => { event.preventDefault(); removeContract.mutate(); }}>Remover contrato</AlertDialogAction>
+            <AlertDialogAction
+              disabled={removeContract.isPending}
+              onClick={(event) => {
+                event.preventDefault();
+                removeContract.mutate();
+              }}
+            >
+              Remover contrato
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

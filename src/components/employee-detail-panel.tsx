@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { QueryError } from "@/components/query-error";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Timeline, type TimelineEvent } from "@/components/timeline";
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -35,7 +36,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { isOperator, useRoles, useSession } from "@/hooks/useAuth";
 import { employeeStatusLabel, formatDate } from "@/lib/format";
 import { logAudit } from "@/lib/audit";
-import { deleteEmployeeCascade } from "@/lib/entity-delete";
+import { archiveEmployee } from "@/lib/entity-delete";
 
 const emptyForm = {
   full_name: "",
@@ -70,6 +71,7 @@ export function EmployeeDetailPanel({
 
   const [mode, setMode] = useState<"view" | "edit">(initialMode);
   const [form, setForm] = useState<FormState>({ ...emptyForm });
+  const baseVersion = useRef<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
@@ -77,7 +79,12 @@ export function EmployeeDetailPanel({
     if (employeeId) setMode(initialMode);
   }, [employeeId, initialMode]);
 
-  const { data: employee, isLoading } = useQuery({
+  const {
+    data: employee,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ["employee", employeeId],
     enabled: open,
     queryFn: async () => {
@@ -91,7 +98,11 @@ export function EmployeeDetailPanel({
     },
   });
 
-  const { data: history } = useQuery({
+  const {
+    data: history,
+    isError: historyError,
+    refetch: retryHistory,
+  } = useQuery({
     queryKey: ["employee-history", employeeId],
     enabled: open,
     queryFn: async () => {
@@ -151,9 +162,9 @@ export function EmployeeDetailPanel({
     return events;
   }, [history]);
 
-
   useEffect(() => {
-    if (!employee) return;
+    if (!employee || dirty) return;
+    baseVersion.current = employee.updated_at;
     setForm({
       full_name: employee.full_name ?? "",
       email: employee.email ?? "",
@@ -166,10 +177,10 @@ export function EmployeeDetailPanel({
       status: employee.status ?? "ativo",
     });
     setDirty(false);
-  }, [employee]);
+  }, [employee, dirty]);
 
   useEffect(() => {
-    if (!open || !onNavigate) return;
+    if (!open || !onNavigate || dirty) return;
     function onKey(e: KeyboardEvent) {
       const el = e.target as HTMLElement | null;
       if (el && ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName)) return;
@@ -184,7 +195,7 @@ export function EmployeeDetailPanel({
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onNavigate]);
+  }, [open, onNavigate, dirty]);
 
   function set<K extends keyof FormState>(key: K, value: string) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -194,9 +205,11 @@ export function EmployeeDetailPanel({
   const save = useMutation({
     mutationFn: async () => {
       if (!employeeId) return;
+      if (employee?.updated_at !== baseVersion.current)
+        throw new Error("O cadastro mudou em outra sessão. Recarregue antes de salvar.");
       if (!form.full_name.trim() || !form.email.trim())
         throw new Error("Nome e e-mail são obrigatórios.");
-      const { error } = await supabase
+      const { data: saved, error } = await supabase
         .from("employees")
         .update({
           full_name: form.full_name.trim(),
@@ -209,20 +222,24 @@ export function EmployeeDetailPanel({
           manager_name: form.manager_name || null,
           status: form.status as "ativo",
         })
-        .eq("id", employeeId);
+        .eq("id", employeeId)
+        .eq("updated_at", baseVersion.current!)
+        .select("*")
+        .maybeSingle();
       if (error) throw error;
+      if (!saved) throw new Error("O cadastro mudou em outra sessão. Recarregue antes de salvar.");
       await logAudit({
         action: "atualizar",
         entity: "employees",
         entityId: employeeId,
-        details: { email: form.email },
+        details: { antes: employee, depois: saved },
       });
     },
     onSuccess: () => {
       toast.success("Colaborador atualizado.");
       setDirty(false);
       setMode("view");
-      queryClient.invalidateQueries({ queryKey: ["employees"] });
+      queryClient.invalidateQueries();
       queryClient.invalidateQueries({ queryKey: ["employee", employeeId] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -231,13 +248,13 @@ export function EmployeeDetailPanel({
   const remove = useMutation({
     mutationFn: async () => {
       if (!employeeId) return;
-      await deleteEmployeeCascade(employeeId, { email: employee?.email });
+      await archiveEmployee(employeeId, !!employee?.archived_at);
     },
     onSuccess: () => {
-      toast.success("Colaborador excluído.");
+      toast.success(employee?.archived_at ? "Cadastro restaurado." : "Cadastro arquivado.");
       setDeleteOpen(false);
       onOpenChange(false);
-      queryClient.invalidateQueries({ queryKey: ["employees"] });
+      queryClient.invalidateQueries();
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -254,13 +271,37 @@ export function EmployeeDetailPanel({
 
   return (
     <>
-      <Sheet open={open} onOpenChange={(v) => !v && onOpenChange(false)}>
+      <Sheet
+        open={open}
+        onOpenChange={(v) => {
+          if (!v && (!dirty || window.confirm("Descartar alterações não salvas?"))) {
+            setDirty(false);
+            onOpenChange(false);
+          }
+        }}
+      >
         <SheetContent
           side="right"
           className="w-full gap-0 p-0 sm:max-w-[880px]"
           onOpenAutoFocus={(e) => e.preventDefault()}
         >
           <div className="flex h-full flex-col">
+            {dirty && (
+              <div role="status" className="flex items-center gap-3 border-b p-2 text-sm">
+                Rascunho local preservado.
+                <Button variant="outline" size="sm" onClick={() => setDirty(false)}>
+                  Descartar e recarregar
+                </Button>
+              </div>
+            )}
+            {isError && <QueryError retry={refetch} />}
+            {historyError && <QueryError retry={retryHistory} />}
+            {dirty && employee?.updated_at !== baseVersion.current && (
+              <p role="alert" className="p-3 text-sm text-destructive">
+                Este registro mudou em outra sessão. Descarte e recarregue para comparar antes de
+                salvar.
+              </p>
+            )}
             <div className="grid min-h-0 flex-1 md:grid-cols-[292px_1fr]">
               <aside className="overflow-y-auto border-b bg-muted/30 px-5 py-6 md:border-b-0 md:border-r">
                 <div className="flex flex-col items-center text-center">
@@ -311,7 +352,8 @@ export function EmployeeDetailPanel({
                       className="flex-1"
                       onClick={() => setDeleteOpen(true)}
                     >
-                      <Trash2 className="mr-2 size-3.5" /> Excluir
+                      <Trash2 className="mr-2 size-3.5" />{" "}
+                      {employee?.archived_at ? "Restaurar" : "Arquivar"}
                     </Button>
                   </div>
                 )}
@@ -324,6 +366,7 @@ export function EmployeeDetailPanel({
                         size="icon"
                         className="size-8"
                         aria-label="Anterior"
+                        disabled={dirty}
                         onClick={() => onNavigate(-1)}
                       >
                         <ChevronUp className="size-4" />
@@ -333,6 +376,7 @@ export function EmployeeDetailPanel({
                         size="icon"
                         className="size-8"
                         aria-label="Próximo"
+                        disabled={dirty}
                         onClick={() => onNavigate(1)}
                       >
                         <ChevronDown className="size-4" />
@@ -383,7 +427,10 @@ export function EmployeeDetailPanel({
                             label="Situação"
                             value={employeeStatusLabel[form.status] ?? form.status}
                           />
-                          <DetailField label="Cadastrado em" value={formatDate(employee?.created_at)} />
+                          <DetailField
+                            label="Cadastrado em"
+                            value={formatDate(employee?.created_at)}
+                          />
                         </DetailSection>
                       </>
                     ) : (
@@ -401,14 +448,28 @@ export function EmployeeDetailPanel({
                           ] as const
                         ).map(([key, label]) => (
                           <div key={key} className="space-y-2">
-                            <Label>{label}</Label>
-                            <Input value={form[key]} onChange={(e) => set(key, e.target.value)} />
+                            <Label
+                              htmlFor={
+                                "qa-employeedetailpaneltsx-15213-" +
+                                encodeURIComponent(String(label))
+                              }
+                            >
+                              {label}
+                            </Label>
+                            <Input
+                              id={
+                                "qa-employeedetailpaneltsx-15213-" +
+                                encodeURIComponent(String(label))
+                              }
+                              value={form[key]}
+                              onChange={(e) => set(key, e.target.value)}
+                            />
                           </div>
                         ))}
                         <div className="space-y-2">
-                          <Label>Situação</Label>
+                          <Label htmlFor={"qa-employeedetailpaneltsx-15474-"}>Situação</Label>
                           <Select value={form.status} onValueChange={(v) => set("status", v)}>
-                            <SelectTrigger>
+                            <SelectTrigger id={"qa-employeedetailpaneltsx-15474-"}>
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -506,10 +567,12 @@ export function EmployeeDetailPanel({
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="font-display">Excluir colaborador?</AlertDialogTitle>
+            <AlertDialogTitle className="font-display">
+              {employee?.archived_at ? "Restaurar" : "Arquivar"} colaborador?
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              {form.full_name || "Colaborador"} · {form.email}. O histórico de vínculos, termos e
-              documentos desta pessoa também serão apagados. Esta ação não pode ser desfeita.
+              {form.full_name || "Colaborador"} · {form.email}. O histórico, os termos e os
+              documentos serão preservados. O cadastro poderá ser restaurado.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -521,7 +584,7 @@ export function EmployeeDetailPanel({
               }}
               disabled={remove.isPending}
             >
-              Excluir definitivamente
+              Confirmar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

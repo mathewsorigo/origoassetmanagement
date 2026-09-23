@@ -1,0 +1,25 @@
+// Rebuilds ONLY the disposable database on this machine. Never accepts a remote URL.
+import fs from "node:fs";
+import path from "node:path";
+import { execFileSync } from "node:child_process";
+import postgres from "postgres";
+const base=path.join(process.env.LOCALAPPDATA,"origoassetmanagement-local");
+const restore=path.join(process.env.LOCALAPPDATA,"codex-tools/origo-db/pgsql/bin/pg_restore.exe");
+for(const file of [restore,path.join(base,"source.backup"),path.join(base,"restore-list.txt")])if(!fs.existsSync(file))throw new Error("Missing local fixture: "+file);
+const password=fs.readFileSync(path.join(base,"admin-password.local"),"utf8");
+const options={host:"127.0.0.1",port:54330,username:"postgres",password};
+const admin=postgres({...options,database:"postgres"});
+await admin`select pg_terminate_backend(pid) from pg_stat_activity where datname='origo_workflow_test'`;
+await admin.unsafe("DROP DATABASE IF EXISTS origo_workflow_test");
+await admin.unsafe("CREATE DATABASE origo_workflow_test");await admin.end();
+const db=postgres({...options,database:"origo_workflow_test"});
+await db.unsafe("CREATE SCHEMA auth; CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS 'SELECT nullif(current_setting(''request.jwt.claim.sub'',true),'''')::uuid';");
+execFileSync(restore,["-h","127.0.0.1","-p","54330","-U","postgres","-d","origo_workflow_test","--no-owner","--no-privileges","--exit-on-error","-L",path.join(base,"restore-list.txt"),path.join(base,"source.backup")],{env:{...process.env,PGPASSWORD:password},stdio:"pipe"});
+await db.unsafe(`CREATE FUNCTION public.is_operator(u uuid) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public AS 'SELECT EXISTS(SELECT 1 FROM user_roles WHERE user_id=u AND role IN (''admin'',''ti''))';
+CREATE FUNCTION public.has_role(u uuid,r app_role) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public AS 'SELECT EXISTS(SELECT 1 FROM user_roles WHERE user_id=u AND role=r)';
+CREATE FUNCTION public.is_manager(u uuid) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public AS 'SELECT EXISTS(SELECT 1 FROM user_roles WHERE user_id=u AND role IN (''admin'',''ti'',''gestor''))';`);
+for(const file of ["0013_consistent_asset_workflows.sql","0014_qa_consistency.sql"]) await db.begin(tx=>tx.unsafe(fs.readFileSync("drizzle/migrations/"+file,"utf8")));
+await db.unsafe(`GRANT USAGE ON SCHEMA auth,public TO authenticated;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO authenticated;
+GRANT INSERT,UPDATE ON assets,employees,assignments,agreements,assignment_checklists,audit_log,inventory_sessions,inventory_checks,import_batches,import_rows,documents,integration_runs TO authenticated;`);
+await db.end();console.log("Disposable QA database restored and migrated.");

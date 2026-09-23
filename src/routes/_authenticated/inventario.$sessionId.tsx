@@ -1,3 +1,6 @@
+import { escapeLike } from "@/lib/query";
+import { fetchAll } from "@/lib/fetch-all";
+import { QueryError } from "@/components/query-error";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -86,12 +89,17 @@ function Conferencia() {
   const [confirmMissing, setConfirmMissing] = useState(false);
   const scannerRef = useRef<{ stop: () => Promise<void>; clear: () => void } | null>(null);
 
-  const { data: session, isLoading: loadingSession } = useQuery({
+  const {
+    data: session,
+    isLoading: loadingSession,
+    isError: sessionError,
+    refetch: retrySession,
+  } = useQuery({
     queryKey: ["inventory-session", sessionId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("inventory_sessions")
-        .select("id,name,scope,status,created_at,closed_at")
+        .select("id,name,scope,status,created_at,closed_at,snapshot,snapshot_at")
         .eq("id", sessionId)
         .single();
       if (error) throw error;
@@ -102,46 +110,30 @@ function Conferencia() {
   const scope = (session?.scope ?? {}) as Record<string, string>;
   const aberta = session?.status === "aberta";
 
-  const { data: scopeAssets, isLoading: loadingAssets } = useQuery({
-    queryKey: ["inventory-scope-assets", sessionId, scope["location"], scope["asset_type"]],
-    enabled: !!session,
-    queryFn: async () => {
-      const CHUNK = 1000;
-      const all: AssetRow[] = [];
-      for (let from = 0; ; from += CHUNK) {
-        let query = supabase
-          .from("assets")
-          .select("id,serial_number,brand,model,asset_type,status,location")
-          .order("id")
-          .range(from, from + CHUNK - 1);
-        if (scope["location"]) query = query.eq("location", scope["location"]);
-        if (scope["asset_type"])
-          query = query.eq(
-            "asset_type",
-            scope["asset_type"] as "notebook" | "celular" | "monitor" | "acessorio" | "outro",
-          );
-        const { data, error } = await query;
-        if (error) throw error;
-        const rows = (data ?? []) as AssetRow[];
-        all.push(...rows);
-        if (rows.length < CHUNK) break;
-      }
-      return all;
-    },
-  });
+  const scopeAssets = useMemo(
+    () => (session?.snapshot ?? []) as unknown as AssetRow[],
+    [session?.snapshot],
+  );
+  const loadingAssets = loadingSession;
 
-  const { data: checks, isLoading: loadingChecks } = useQuery({
+  const {
+    data: checks,
+    isLoading: loadingChecks,
+    isError: checksError,
+    refetch: retryChecks,
+  } = useQuery({
     queryKey: ["inventory-checks", sessionId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("inventory_checks")
-        .select(
-          "id,asset_id,checked_at,divergencia,asset:assets(id,serial_number,brand,model,asset_type,status,location)",
-        )
-        .eq("session_id", sessionId)
-        .order("checked_at", { ascending: false });
-      if (error) throw error;
-      return (data ?? []) as unknown as CheckRow[];
+      const rows = await fetchAll((from, to) =>
+        supabase
+          .from("inventory_checks")
+          .select("id,asset_id,checked_at,divergencia,asset:asset_snapshot")
+          .eq("session_id", sessionId)
+          .order("checked_at", { ascending: false })
+          .order("id")
+          .range(from, to),
+      );
+      return rows as unknown as CheckRow[];
     },
   });
 
@@ -202,6 +194,7 @@ function Conferencia() {
       const { data } = await supabase
         .from("assets")
         .select("id,serial_number,brand,model,asset_type,status,location")
+        .is("archived_at", null)
         .eq("id", uuid)
         .maybeSingle();
       if (data) return data as AssetRow;
@@ -211,7 +204,8 @@ function Conferencia() {
     const { data } = await supabase
       .from("assets")
       .select("id,serial_number,brand,model,asset_type,status,location")
-      .ilike("serial_number", text)
+      .is("archived_at", null)
+      .ilike("serial_number", escapeLike(text))
       .limit(1)
       .maybeSingle();
     return (data as AssetRow | null) ?? null;
@@ -276,22 +270,15 @@ function Conferencia() {
 
   const markMissing = useMutation({
     mutationFn: async () => {
-      for (const asset of missing) {
-        const { error } = await supabase
-          .from("assets")
-          .update({ status: "extraviado" })
-          .eq("id", asset.id);
-        if (error) throw error;
-      }
-      await logAudit({
-        action: "extravio_inventario",
-        entity: "inventory_sessions",
-        entityId: sessionId,
-        details: { series: missing.map((a) => a.serial_number) },
+      const { data, error } = await supabase.rpc("qa_transaction", {
+        p_action: "inventory_missing",
+        p_data: { id: sessionId },
       });
+      if (error) throw error;
+      return data as { count: number };
     },
-    onSuccess: () => {
-      toast.success(`${missing.length} equipamento(s) marcados como extraviado.`);
+    onSuccess: (result) => {
+      toast.success(`${result.count} equipamento(s) marcados como extraviado.`);
       setConfirmMissing(false);
       queryClient.invalidateQueries();
     },
@@ -318,6 +305,15 @@ function Conferencia() {
   }
 
   const loading = loadingSession || loadingAssets || loadingChecks;
+  if (sessionError || checksError)
+    return (
+      <QueryError
+        retry={() => {
+          void retrySession();
+          void retryChecks();
+        }}
+      />
+    );
 
   return (
     <div>

@@ -1,6 +1,7 @@
+import { assertChecklist } from "@/lib/assignment-workflow";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Plus, Search, Undo2, X } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
@@ -37,13 +38,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { useRoles, useSession, isOperator } from "@/hooks/useAuth";
 import { formatDate } from "@/lib/format";
 import { renderAgreement } from "@/lib/agreements";
-import { logAudit } from "@/lib/audit";
 import { SortableHead, TablePagination } from "@/components/data-table-ui";
-import { useTableState } from "@/hooks/useTableState";
+import { useRemoteList } from "@/hooks/useRemoteList";
+import { QueryError } from "@/components/query-error";
+import { uploadChecklistPhotos, localCalendarDate } from "@/lib/assignment-workflow";
+import { fetchAll } from "@/lib/fetch-all";
 import {
   ChecklistFields,
   emptyChecklist,
-  saveAssignmentChecklist,
   type ChecklistItem,
 } from "@/components/assignment-checklist";
 
@@ -81,73 +83,57 @@ function Vinculos() {
   const [form, setForm] = useState({
     employee_id: "",
     asset_id: "",
-    assigned_at: new Date().toISOString().slice(0, 10),
+    assigned_at: localCalendarDate(),
     delivery_condition: "Novo / em perfeito estado",
     notes: "",
   });
 
-  const { data: assignments, isLoading } = useQuery({
-    queryKey: ["assignments"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("assignments")
-        .select(
-          "*, employee:employees(id,full_name,email), asset:assets(id,serial_number,brand,model), agreements(id,status)",
-        )
-        .order("assigned_at", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-  });
-
   const [nameQuery, setNameQuery] = useState("");
-  const normalizeName = (v: string) =>
-    v.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
-  const filteredAssignments = useMemo(() => {
-    const q = normalizeName(nameQuery);
-    if (!q || !assignments) return assignments;
-    return assignments.filter((a) =>
-      normalizeName((a.employee as { full_name: string } | null)?.full_name ?? "").includes(q),
-    );
-  }, [assignments, nameQuery]);
-
-  const table = useTableState(filteredAssignments, {
-    key: "vinculos",
-    accessors: {
-      colaborador: (a) => (a.employee as { full_name: string } | null)?.full_name ?? null,
-      equipamento: (a) => {
-        const asset = a.asset as { brand: string | null; model: string | null; serial_number: string } | null;
-        return asset ? `${asset.brand ?? ""} ${asset.model ?? ""}`.trim() || asset.serial_number : null;
-      },
-      entrega: (a) => a.assigned_at,
-      devolucao: (a) => a.returned_at,
-      situacao: (a) => a.status,
+  const list = useRemoteList({
+    view: "assignments_list",
+    key: "assignments",
+    term: nameQuery,
+    defaultSort: "entrega",
+    defaultSortDir: "desc",
+    columns: {
+      colaborador: "employee_name",
+      equipamento: "asset_name",
+      entrega: "assigned_at",
+      devolucao: "returned_at",
+      situacao: "status",
     },
   });
+  const { isLoading, table } = list;
 
   const { data: employees } = useQuery({
     queryKey: ["employees-simple"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("employees")
-        .select("id,full_name,email,cpf,job_title,department")
-        .eq("status", "ativo")
-        .order("full_name");
-      if (error) throw error;
-      return data;
+      return fetchAll((from, to) =>
+        supabase
+          .from("employees")
+          .select("id,full_name,email,cpf,job_title,department")
+          .eq("status", "ativo")
+          .is("archived_at", null)
+          .order("full_name")
+          .order("id")
+          .range(from, to),
+      );
     },
   });
 
   const { data: availableAssets } = useQuery({
     queryKey: ["assets-available"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("assets")
-        .select("id,serial_number,brand,model,asset_type,patrimony,imei,supplier")
-        .eq("status", "disponivel")
-        .order("serial_number");
-      if (error) throw error;
-      return data;
+      return fetchAll((from, to) =>
+        supabase
+          .from("assets")
+          .select("id,serial_number,brand,model,asset_type,patrimony,imei,supplier")
+          .eq("status", "disponivel")
+          .is("archived_at", null)
+          .order("serial_number")
+          .order("id")
+          .range(from, to),
+      );
     },
   });
 
@@ -157,62 +143,34 @@ function Vinculos() {
       const asset = availableAssets?.find((a) => a.id === form.asset_id);
       if (!employee || !asset) throw new Error("Selecione o colaborador e o equipamento.");
 
-      const { data: assignment, error } = await supabase
-        .from("assignments")
-        .insert({
-          employee_id: employee.id,
-          asset_id: asset.id,
-          assigned_at: new Date(form.assigned_at).toISOString(),
-          delivery_condition: form.delivery_condition || null,
-          notes: form.notes || null,
-          created_by: user?.id ?? null,
-        })
-        .select("id")
-        .single();
-      if (error) throw error;
-
-      await supabase.from("assets").update({ status: "em_uso" }).eq("id", asset.id);
-
-      const { data: template } = await supabase
+      if (!form.assigned_at) throw new Error("Informe a data da entrega.");
+      const { data: template, error: templateError } = await supabase
         .from("agreement_templates")
         .select("id,body")
         .eq("is_default", true)
         .maybeSingle();
-
-      if (template) {
-        const content = renderAgreement(template.body, employee, asset, {
+      if (templateError) throw templateError;
+      if (!template)
+        throw new Error("Configure um modelo de termo padrão antes de registrar a entrega.");
+      const id = crypto.randomUUID();
+      assertChecklist(checklist);
+      const photos = await uploadChecklistPhotos(id, checklistPhotos);
+      const { error } = await supabase.rpc("create_assignment_complete", {
+        p_id: id,
+        p_asset_id: asset.id,
+        p_employee_id: employee.id,
+        p_assigned_at: new Date(form.assigned_at + "T00:00:00").toISOString(),
+        p_delivery_condition: form.delivery_condition,
+        p_notes: form.notes,
+        p_template_id: template.id,
+        p_content: renderAgreement(template.body, employee, asset, {
           deliveryDate: form.assigned_at,
           deliveryCondition: form.delivery_condition,
-        });
-        const { error: agreementError } = await supabase.from("agreements").insert({
-          assignment_id: assignment.id,
-          employee_id: employee.id,
-          asset_id: asset.id,
-          template_id: template.id,
-          content,
-          status: "rascunho",
-        });
-        if (agreementError) throw agreementError;
-      }
-
-      await logAudit({
-        action: "vincular",
-        entity: "assignments",
-        entityId: assignment.id,
-        details: { employee: employee.email, serial_number: asset.serial_number },
+        }),
+        p_items: checklist,
+        p_photos: photos,
       });
-
-      try {
-        await saveAssignmentChecklist({
-          assignmentId: assignment.id,
-          kind: "entrega",
-          items: checklist,
-          photos: checklistPhotos,
-          userId: user?.id,
-        });
-      } catch (checklistError) {
-        console.error("Falha ao salvar checklist de entrega:", checklistError);
-      }
+      if (error) throw error;
     },
     onSuccess: () => {
       toast.success("Vínculo criado, termo gerado e checklist registrado.");
@@ -227,31 +185,15 @@ function Vinculos() {
 
   const closeAssignment = useMutation({
     mutationFn: async (assignmentId: string) => {
-      const row = assignments?.find((a) => a.id === assignmentId);
-      const { error } = await supabase
-        .from("assignments")
-        .update({
-          status: "encerrado",
-          returned_at: new Date().toISOString(),
-          return_condition: returnCondition || null,
-        })
-        .eq("id", assignmentId);
+      assertChecklist(returnChecklist);
+      const photos = await uploadChecklistPhotos(assignmentId, returnPhotos);
+      const { error } = await supabase.rpc("close_assignment_complete", {
+        p_id: assignmentId,
+        p_condition: returnCondition,
+        p_items: returnChecklist,
+        p_photos: photos,
+      });
       if (error) throw error;
-      const assetId = (row?.asset as { id: string } | null)?.id;
-      if (assetId) await supabase.from("assets").update({ status: "disponivel" }).eq("id", assetId);
-      await logAudit({ action: "devolver", entity: "assignments", entityId: assignmentId });
-
-      try {
-        await saveAssignmentChecklist({
-          assignmentId,
-          kind: "devolucao",
-          items: returnChecklist,
-          photos: returnPhotos,
-          userId: user?.id,
-        });
-      } catch (checklistError) {
-        console.error("Falha ao salvar checklist de devolução:", checklistError);
-      }
     },
     onSuccess: () => {
       toast.success("Devolução registrada com checklist.");
@@ -279,6 +221,7 @@ function Vinculos() {
         }
       />
 
+      {list.isError && <QueryError retry={list.refetch} />}
       <Card className="p-3 sm:p-4">
         <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="relative w-full sm:max-w-sm">
@@ -289,8 +232,8 @@ function Vinculos() {
                 setNameQuery(e.target.value);
                 table.setPage(1);
               }}
-              placeholder="Buscar colaborador…"
-              aria-label="Buscar colaborador pelo nome"
+              placeholder="Buscar nome, equipamento ou série…"
+              aria-label="Buscar vínculo por nome, equipamento ou série"
               className="h-10 pl-9 pr-9"
             />
             {nameQuery && (
@@ -312,10 +255,14 @@ function Vinculos() {
         </div>
 
         <ul className="divide-y md:hidden">
-          {isLoading && <li className="py-6 text-center text-sm text-muted-foreground">Carregando…</li>}
-          {!isLoading && table.total === 0 && (
+          {isLoading && (
+            <li className="py-6 text-center text-sm text-muted-foreground">Carregando…</li>
+          )}
+          {!isLoading && !list.isError && table.total === 0 && (
             <li className="py-6 text-center text-sm text-muted-foreground">
-              {nameQuery ? "Nenhum colaborador encontrado com esse nome." : "Nenhum vínculo registrado."}
+              {nameQuery
+                ? "Nenhum vínculo encontrado para essa busca."
+                : "Nenhum vínculo registrado."}
             </li>
           )}
           {table.pageRows.map((a) => {
@@ -358,13 +305,20 @@ function Vinculos() {
                   <span>Entrega: {formatDate(a.assigned_at)}</span>
                   {a.returned_at && <span>Devolução: {formatDate(a.returned_at)}</span>}
                   {agreement ? (
-                    <Link to="/termos"><StatusBadge value={agreement.status} /></Link>
+                    <Link to="/termos">
+                      <StatusBadge value={agreement.status} />
+                    </Link>
                   ) : (
                     <span>sem termo</span>
                   )}
                 </div>
                 {canEdit && a.status === "ativo" && (
-                  <Button variant="outline" size="sm" className="w-full" onClick={() => setReturnTarget(a.id)}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => setReturnTarget(a.id)}
+                  >
                     <Undo2 className="mr-2 size-4" /> Devolver
                   </Button>
                 )}
@@ -374,113 +328,115 @@ function Vinculos() {
         </ul>
 
         <div className="hidden overflow-x-auto md:block">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              {(
-                [
-                  ["colaborador", "Colaborador"],
-                  ["equipamento", "Equipamento"],
-                  ["entrega", "Entrega"],
-                  ["devolucao", "Devolução"],
-                ] as const
-              ).map(([columnKey, label]) => (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                {(
+                  [
+                    ["colaborador", "Colaborador"],
+                    ["equipamento", "Equipamento"],
+                    ["entrega", "Entrega"],
+                    ["devolucao", "Devolução"],
+                  ] as const
+                ).map(([columnKey, label]) => (
+                  <SortableHead
+                    key={columnKey}
+                    columnKey={columnKey}
+                    label={label}
+                    sortKey={table.sortKey}
+                    sortDir={table.sortDir}
+                    onToggle={table.toggleSort}
+                  />
+                ))}
+                <TableHead>Termo</TableHead>
                 <SortableHead
-                  key={columnKey}
-                  columnKey={columnKey}
-                  label={label}
+                  columnKey="situacao"
+                  label="Situação"
                   sortKey={table.sortKey}
                   sortDir={table.sortDir}
                   onToggle={table.toggleSort}
                 />
-              ))}
-              <TableHead>Termo</TableHead>
-              <SortableHead
-                columnKey="situacao"
-                label="Situação"
-                sortKey={table.sortKey}
-                sortDir={table.sortDir}
-                onToggle={table.toggleSort}
-              />
-              <TableHead />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading && (
-              <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground">
-                  Carregando…
-                </TableCell>
+                <TableHead />
               </TableRow>
-            )}
-            {!isLoading && table.total === 0 && (
-              <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground">
-                  Nenhum vínculo registrado.
-                </TableCell>
-              </TableRow>
-            )}
-            {table.pageRows.map((a) => {
-              const employee = a.employee as { id: string; full_name: string } | null;
-              const asset = a.asset as {
-                id: string;
-                serial_number: string;
-                brand: string | null;
-                model: string | null;
-              } | null;
-              const agreement = (a.agreements as Array<{ id: string; status: string }> | null)?.[0];
-              return (
-                <TableRow key={a.id}>
-                  <TableCell className="text-sm">
-                    {employee && (
-                      <Link
-                        to="/pessoas/$id"
-                        params={{ id: employee.id }}
-                        className="font-medium hover:text-primary hover:underline"
-                      >
-                        {employee.full_name}
-                      </Link>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-sm">
-                    {asset && (
-                      <Link
-                        to="/ativos/$id"
-                        params={{ id: asset.id }}
-                        className="hover:text-primary hover:underline"
-                      >
-                        {asset.brand} {asset.model} · {asset.serial_number}
-                      </Link>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-sm">{formatDate(a.assigned_at)}</TableCell>
-                  <TableCell className="text-sm">
-                    {a.returned_at ? formatDate(a.returned_at) : "—"}
-                  </TableCell>
-                  <TableCell>
-                    {agreement ? (
-                      <Link to="/termos" className="text-xs text-primary hover:underline">
-                        <StatusBadge value={agreement.status} />
-                      </Link>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">sem termo</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge value={a.status} />
-                  </TableCell>
-                  <TableCell>
-                    {canEdit && a.status === "ativo" && (
-                      <Button variant="ghost" size="sm" onClick={() => setReturnTarget(a.id)}>
-                        <Undo2 className="mr-2 size-4" /> Devolver
-                      </Button>
-                    )}
+            </TableHeader>
+            <TableBody>
+              {isLoading && (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center text-muted-foreground">
+                    Carregando…
                   </TableCell>
                 </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
+              )}
+              {!isLoading && table.total === 0 && (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center text-muted-foreground">
+                    Nenhum vínculo registrado.
+                  </TableCell>
+                </TableRow>
+              )}
+              {table.pageRows.map((a) => {
+                const employee = a.employee as { id: string; full_name: string } | null;
+                const asset = a.asset as {
+                  id: string;
+                  serial_number: string;
+                  brand: string | null;
+                  model: string | null;
+                } | null;
+                const agreement = (
+                  a.agreements as Array<{ id: string; status: string }> | null
+                )?.[0];
+                return (
+                  <TableRow key={a.id}>
+                    <TableCell className="text-sm">
+                      {employee && (
+                        <Link
+                          to="/pessoas/$id"
+                          params={{ id: employee.id }}
+                          className="font-medium hover:text-primary hover:underline"
+                        >
+                          {employee.full_name}
+                        </Link>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {asset && (
+                        <Link
+                          to="/ativos/$id"
+                          params={{ id: asset.id }}
+                          className="hover:text-primary hover:underline"
+                        >
+                          {asset.brand} {asset.model} · {asset.serial_number}
+                        </Link>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-sm">{formatDate(a.assigned_at)}</TableCell>
+                    <TableCell className="text-sm">
+                      {a.returned_at ? formatDate(a.returned_at) : "—"}
+                    </TableCell>
+                    <TableCell>
+                      {agreement ? (
+                        <Link to="/termos" className="text-xs text-primary hover:underline">
+                          <StatusBadge value={agreement.status} />
+                        </Link>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">sem termo</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge value={a.status} />
+                    </TableCell>
+                    <TableCell>
+                      {canEdit && a.status === "ativo" && (
+                        <Button variant="ghost" size="sm" onClick={() => setReturnTarget(a.id)}>
+                          <Undo2 className="mr-2 size-4" /> Devolver
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
         </div>
         <TablePagination
           className="-mx-4 mt-3 px-4"
@@ -507,12 +463,12 @@ function Vinculos() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Colaborador</Label>
+              <Label htmlFor={"qa-vinculostsx-17294-"}>Colaborador</Label>
               <Select
                 value={form.employee_id}
                 onValueChange={(v) => setForm({ ...form, employee_id: v })}
               >
-                <SelectTrigger>
+                <SelectTrigger id={"qa-vinculostsx-17294-"}>
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
                 <SelectContent>
@@ -525,9 +481,12 @@ function Vinculos() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Equipamento disponível</Label>
-              <Select value={form.asset_id} onValueChange={(v) => setForm({ ...form, asset_id: v })}>
-                <SelectTrigger>
+              <Label htmlFor={"qa-vinculostsx-17972-"}>Equipamento disponível</Label>
+              <Select
+                value={form.asset_id}
+                onValueChange={(v) => setForm({ ...form, asset_id: v })}
+              >
+                <SelectTrigger id={"qa-vinculostsx-17972-"}>
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
                 <SelectContent>
@@ -545,23 +504,26 @@ function Vinculos() {
               )}
             </div>
             <div className="space-y-2">
-              <Label>Data de entrega</Label>
+              <Label htmlFor={"qa-vinculostsx-18896-"}>Data de entrega</Label>
               <Input
+                id={"qa-vinculostsx-18896-"}
                 type="date"
                 value={form.assigned_at}
                 onChange={(e) => setForm({ ...form, assigned_at: e.target.value })}
               />
             </div>
             <div className="space-y-2">
-              <Label>Condição de entrega</Label>
+              <Label htmlFor={"qa-vinculostsx-19191-"}>Condição de entrega</Label>
               <Input
+                id={"qa-vinculostsx-19191-"}
                 value={form.delivery_condition}
                 onChange={(e) => setForm({ ...form, delivery_condition: e.target.value })}
               />
             </div>
             <div className="space-y-2">
-              <Label>Observações</Label>
+              <Label htmlFor={"qa-vinculostsx-19476-"}>Observações</Label>
               <Textarea
+                id={"qa-vinculostsx-19476-"}
                 value={form.notes}
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
               />
@@ -588,14 +550,13 @@ function Vinculos() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="font-display">Registrar devolução</DialogTitle>
-            <DialogDescription>
-              O equipamento volta para a situação "Disponível".
-            </DialogDescription>
+            <DialogDescription>O equipamento volta para a situação "Disponível".</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Condição na devolução</Label>
+              <Label htmlFor={"qa-vinculostsx-20721-"}>Condição na devolução</Label>
               <Textarea
+                id={"qa-vinculostsx-20721-"}
                 value={returnCondition}
                 onChange={(e) => setReturnCondition(e.target.value)}
                 placeholder="Ex.: equipamento em bom estado, com carregador"

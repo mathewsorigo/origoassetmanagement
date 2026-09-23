@@ -1,6 +1,6 @@
 export function formatDate(value?: string | null) {
   if (!value) return "—";
-  const d = new Date(value);
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(value + "T12:00:00") : new Date(value);
   if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleDateString("pt-BR");
 }

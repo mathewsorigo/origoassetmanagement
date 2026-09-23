@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { isLocalPreview, previewProfile, previewSession } from "@/lib/local-preview";
 
 export type AppRole = "admin" | "ti" | "gestor" | "colaborador";
 
@@ -10,6 +11,11 @@ export function useSession() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (isLocalPreview()) {
+      setSession(previewSession);
+      setLoading(false);
+      return;
+    }
     const { data } = supabase.auth.onAuthStateChange((_event, next) => {
       setSession(next);
       setLoading(false);
@@ -31,6 +37,7 @@ export function useRoles(user: User | null) {
     staleTime: 15 * 60 * 1000,
     gcTime: 60 * 60 * 1000,
     queryFn: async () => {
+      if (isLocalPreview()) return ["admin"] as AppRole[];
       const { data, error } = await supabase
         .from("user_roles")
         .select("role")
@@ -48,6 +55,7 @@ export function useProfile(user: User | null) {
     staleTime: 15 * 60 * 1000,
     gcTime: 60 * 60 * 1000,
     queryFn: async () => {
+      if (isLocalPreview()) return previewProfile;
       const { data, error } = await supabase
         .from("profiles")
         .select("*")

@@ -1,3 +1,4 @@
+import { QueryError } from "@/components/query-error";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -26,7 +27,7 @@ export function ListManager({
   const [newName, setNewName] = useState("");
   const [editing, setEditing] = useState<{ id: string; name: string } | null>(null);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: [table],
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
@@ -48,9 +49,7 @@ export function ListManager({
       toast.success("Item adicionado.");
     },
     onError: (e: Error) =>
-      toast.error(
-        e.message.includes("duplicate") ? "Este nome já existe nesta lista." : e.message,
-      ),
+      toast.error(e.message.includes("duplicate") ? "Este nome já existe nesta lista." : e.message),
   });
 
   const rename = useMutation({
@@ -85,6 +84,7 @@ export function ListManager({
     onError: (e: Error) => toast.error(e.message),
   });
 
+  if (isError) return <QueryError retry={refetch} />;
   return (
     <Card>
       <CardHeader>
@@ -176,7 +176,9 @@ export function ListManager({
             </li>
           ))}
           {!isLoading && (data ?? []).length === 0 && (
-            <li className="p-3 text-center text-xs text-muted-foreground">Nenhum item cadastrado.</li>
+            <li className="p-3 text-center text-xs text-muted-foreground">
+              Nenhum item cadastrado.
+            </li>
           )}
         </ul>
       </CardContent>

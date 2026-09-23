@@ -4,7 +4,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 
-export type ChecklistItem = { label: string; ok: boolean };
+export type ChecklistItem = { label: string; ok: boolean | null };
 
 export const DEFAULT_CHECKLIST_ITEMS = [
   "Liga e funciona",
@@ -15,7 +15,7 @@ export const DEFAULT_CHECKLIST_ITEMS = [
 ];
 
 export function emptyChecklist(): ChecklistItem[] {
-  return DEFAULT_CHECKLIST_ITEMS.map((label) => ({ label, ok: true }));
+  return DEFAULT_CHECKLIST_ITEMS.map((label) => ({ label, ok: null }));
 }
 
 export function ChecklistFields({
@@ -39,14 +39,23 @@ export function ChecklistFields({
             key={item.label}
             className="flex min-h-11 cursor-pointer items-center gap-3 rounded-md px-1 text-sm text-foreground/90 active:bg-muted"
           >
-            <Checkbox
-              checked={item.ok}
-              onCheckedChange={(checked) => {
+            <select
+              aria-label={item.label}
+              value={item.ok === null ? "pending" : String(item.ok)}
+              className="rounded border bg-background p-2"
+              onChange={(e) => {
                 const next = [...items];
-                next[index] = { ...item, ok: checked === true };
+                next[index] = {
+                  ...item,
+                  ok: e.target.value === "pending" ? null : e.target.value === "true",
+                };
                 onChange(next);
               }}
-            />
+            >
+              <option value="pending">Não verificado</option>
+              <option value="true">Conforme</option>
+              <option value="false">Com problema</option>
+            </select>
             {item.label}
           </label>
         ))}

@@ -1,0 +1,3 @@
+serial;marca;custo_mensal;inicio_locacao;fim_locacao
+QA-PREVIEW-001;Teste;1.234,56;01/01/2026;31/12/2026
+QA-PREVIEW-002;Teste;0;31/02/2026;31/12/2026

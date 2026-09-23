@@ -1,3 +1,4 @@
+import { QueryError } from "@/components/query-error";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -18,7 +19,11 @@ export function DeniedAttemptsCard() {
   const allowFn = useServerFn(addAllowedEmail);
   const dismissFn = useServerFn(dismissDeniedAttempt);
 
-  const { data: rows } = useQuery({
+  const {
+    data: rows,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ["denied-attempts"],
     queryFn: () => listFn(),
     staleTime: 30 * 1000,
@@ -51,6 +56,7 @@ export function DeniedAttemptsCard() {
 
   if (!rows || rows.length === 0) return null;
 
+  if (isError) return <QueryError retry={refetch} />;
   return (
     <Card className="mt-6 border-warning/40 p-4">
       <div className="mb-3 space-y-1">
@@ -80,9 +86,7 @@ export function DeniedAttemptsCard() {
               </Badge>
               <Button
                 size="sm"
-                onClick={() =>
-                  allowMutation.mutate({ email: r.email, fullName: r.full_name })
-                }
+                onClick={() => allowMutation.mutate({ email: r.email, fullName: r.full_name })}
                 disabled={allowMutation.isPending}
               >
                 <Check className="mr-2 size-4" />

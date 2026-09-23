@@ -6,11 +6,9 @@ export async function exportToExcel(fileName: string, rows: Array<Record<string,
   XLSX.writeFile(book, `${fileName}-${new Date().toISOString().slice(0, 10)}.xlsx`);
 }
 
-export async function readSpreadsheet(
-  file: ArrayBuffer,
-): Promise<Array<Record<string, unknown>>> {
+export async function readSpreadsheet(file: ArrayBuffer): Promise<Array<Record<string, unknown>>> {
   const XLSX = await import("xlsx");
-  const book = XLSX.read(file, { type: "array" });
+  const book = XLSX.read(file, { type: "array", raw: true });
   const first = book.SheetNames[0];
   if (!first) return [];
   const sheet = book.Sheets[first];

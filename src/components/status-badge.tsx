@@ -58,6 +58,10 @@ const tones: Record<string, { chip: string; dot: string }> = {
 };
 
 const extraLabels: Record<string, string> = {
+  solicitado: "Solicitação aceita",
+  sucesso: "Concluído",
+  pendente: "Pendente",
+  erro: "Erro",
   vigente: "Vigente",
   vencendo: "Vencendo",
   vencida: "Vencida",

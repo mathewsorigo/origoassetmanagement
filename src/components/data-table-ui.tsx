@@ -1,4 +1,12 @@
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -95,7 +103,23 @@ export function TablePagination({
         </Select>
         <span className="hidden sm:inline">
           Mostrando {rangeStart.toLocaleString("pt-BR")}–{rangeEnd.toLocaleString("pt-BR")} de{" "}
-          {total.toLocaleString("pt-BR")} {noun}
+          {total.toLocaleString("pt-BR")}{" "}
+          {total === 1
+            ? ((
+                {
+                  itens: "item",
+                  equipamentos: "equipamento",
+                  colaboradores: "colaborador",
+                  contratos: "contrato",
+                  grupos: "grupo",
+                  termos: "termo",
+                  vínculos: "vínculo",
+                  registros: "registro",
+                  conferências: "conferência",
+                  linhas: "linha",
+                } as Record<string, string>
+              )[noun] ?? noun)
+            : noun}
         </span>
       </div>
       <div className="flex items-center gap-1.5">

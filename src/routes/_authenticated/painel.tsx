@@ -24,6 +24,7 @@ const AssetLocationMap = lazy(() =>
 );
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
+import { QueryError } from "@/components/query-error";
 import { StatCard } from "@/components/stat-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
@@ -57,7 +58,7 @@ function ChartFallback() {
 }
 
 function Painel() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["painel"],
     queryFn: async () => {
       const CHUNK = 1000;
@@ -75,19 +76,24 @@ function Painel() {
         return all;
       }
 
-      const [assets, employees, timeline, assignments, signed, active] =
-        await Promise.all([
+      const [assets, employees, timeline, assignments, signed, active] = await Promise.all([
         fetchAll((from, to) =>
           supabase
             .from("assets")
             .select(
               "id,status,asset_type,lease_end,serial_number,brand,model,location,last_seen_location",
             )
+            .is("archived_at", null)
             .order("id")
             .range(from, to),
         ),
         fetchAll((from, to) =>
-          supabase.from("employees").select("id,status").order("id").range(from, to),
+          supabase
+            .from("employees")
+            .select("id,status")
+            .is("archived_at", null)
+            .order("id")
+            .range(from, to),
         ),
         fetchAll((from, to) =>
           supabase.from("assignments").select("id,assigned_at").order("id").range(from, to),
@@ -108,7 +114,10 @@ function Painel() {
           .from("assignments")
           .select("id", { count: "exact", head: true })
           .eq("status", "ativo"),
-        ]);
+      ]);
+      for (const result of [assignments, signed, active]) {
+        if (result.error) throw result.error;
+      }
       return {
         assets,
         employees,
@@ -183,6 +192,8 @@ function Painel() {
     if (m) m.total += 1;
   }
 
+  if (isError) return <QueryError retry={refetch} />;
+
   return (
     <div>
       <PageHeader
@@ -203,6 +214,7 @@ function Painel() {
         <StatCard
           label="Em uso"
           to="/ativos"
+          search={{ situacao: "em_uso" }}
           value={count("em_uso")}
           icon={Smartphone}
           tone="success"
@@ -212,6 +224,7 @@ function Painel() {
         <StatCard
           label="Disponíveis"
           to="/ativos"
+          search={{ situacao: "disponivel" }}
           value={count("disponivel")}
           icon={CheckCircle2}
           tone="info"
@@ -221,6 +234,7 @@ function Painel() {
         <StatCard
           label="Em manutenção"
           to="/ativos"
+          search={{ situacao: "manutencao" }}
           value={count("manutencao")}
           icon={AlertTriangle}
           tone="warning"
@@ -230,7 +244,7 @@ function Painel() {
       </div>
 
       <div className="mt-5 grid gap-3 lg:grid-cols-3">
-        <Card >
+        <Card>
           <CardHeader>
             <CardTitle>Equipamentos por situação</CardTitle>
           </CardHeader>
@@ -260,7 +274,7 @@ function Painel() {
           </CardContent>
         </Card>
 
-        <Card >
+        <Card>
           <CardHeader>
             <CardTitle>Por tipo de equipamento</CardTitle>
           </CardHeader>
@@ -275,7 +289,7 @@ function Painel() {
           </CardContent>
         </Card>
 
-        <Card >
+        <Card>
           <CardHeader>
             <CardTitle>Vínculos por mês</CardTitle>
           </CardHeader>
@@ -307,7 +321,7 @@ function Painel() {
           </CardContent>
         </Card>
 
-        <Card >
+        <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>
               Últimos vínculos

@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Minus, Plus, LocateFixed } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import type { GeoJsonObject } from "geojson";
 import { geoEqualEarth } from "d3-geo";
 import {
@@ -8,6 +10,7 @@ import {
   Graticule,
   Marker,
   Sphere,
+  ZoomableGroup,
 } from "react-simple-maps";
 import world from "world-atlas/countries-110m.json";
 
@@ -80,6 +83,21 @@ export function AssetLocationMap({
   data: AssetLocationDatum[];
   withoutLocation: number;
 }) {
+  const [position, setPosition] = useState({
+    coordinates: [-52, -14] as [number, number],
+    zoom: 4,
+  });
+  const [displayZoom, setDisplayZoom] = useState(4);
+  function changeZoom(factor: number) {
+    const zoom = Math.max(1, Math.min(12, position.zoom * factor));
+    setPosition((current) => ({ ...current, zoom }));
+    setDisplayZoom(zoom);
+  }
+  function resetMap() {
+    setPosition({ coordinates: [-52, -14], zoom: 4 });
+    setDisplayZoom(4);
+    setActive(null);
+  }
   const [active, setActive] = useState<LocatedDatum | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -127,7 +145,7 @@ export function AssetLocationMap({
     <div className="flex h-full min-h-0 flex-1 flex-col">
       <div
         ref={containerRef}
-        className="relative min-h-0 flex-1 overflow-hidden rounded-md bg-muted/40"
+        className="relative min-h-[320px] flex-1 overflow-hidden rounded-md border bg-muted/40"
       >
         {size.width > 0 && (
           <ComposableMap
@@ -135,49 +153,135 @@ export function AssetLocationMap({
             height={height}
             projection={projection}
             className="h-full w-full"
-            aria-label="Mapa mundial com a distribuição dos equipamentos"
+            aria-label="Mapa interativo da localização dos equipamentos, inicialmente aproximado no Brasil"
           >
-            <Sphere id="asset-map-sphere" fill="var(--card)" stroke="var(--border)" strokeWidth={0.7} />
-            <Graticule stroke="var(--border)" strokeWidth={0.35} />
-            <Geographies geography={world as unknown as GeoJsonObject}>
-              {({ geographies }) =>
-                geographies.map((geography) => (
-                  <Geography
-                    key={geography.rsmKey}
-                    geography={geography}
-                    fill="var(--muted)"
-                    stroke="var(--card)"
-                    strokeWidth={0.55}
-                    className="outline-none transition-colors hover:fill-secondary focus:fill-secondary"
-                  />
-                ))
-              }
-            </Geographies>
-            {located.map((item) => {
-              const radius = 4 + Math.sqrt(item.total / max) * 10;
-              return (
-                <Marker key={item.location} coordinates={item.coordinates}>
-                  <g
-                    role="button"
-                    tabIndex={0}
-                    aria-label={`${item.location}: ${item.total} equipamentos`}
-                    onMouseEnter={() => setActive(item)}
-                    onMouseLeave={() => setActive(null)}
-                    onFocus={() => setActive(item)}
-                    onBlur={() => setActive(null)}
-                    onClick={() =>
-                      setActive((current) => (current?.location === item.location ? null : item))
-                    }
-                    className="cursor-pointer outline-none"
-                  >
-                    <circle r={radius + 4} fill="var(--primary)" opacity={0.16} />
-                    <circle r={radius} fill="var(--primary)" stroke="var(--card)" strokeWidth={2} />
-                  </g>
-                </Marker>
-              );
-            })}
+            <ZoomableGroup
+              center={position.coordinates}
+              zoom={position.zoom}
+              minZoom={1}
+              maxZoom={12}
+              filterZoomEvent={(event) => {
+                const input = event as unknown as MouseEvent;
+                return input.type !== "wheel" || input.ctrlKey || input.metaKey;
+              }}
+              onMove={({ zoom }) => {
+                if (zoom !== undefined) setDisplayZoom(zoom);
+              }}
+              onMoveEnd={(next) => {
+                setPosition((current) => ({
+                  coordinates: next.coordinates ?? current.coordinates,
+                  zoom: next.zoom ?? current.zoom,
+                }));
+                if (next.zoom !== undefined) setDisplayZoom(next.zoom);
+              }}
+              className="cursor-grab active:cursor-grabbing"
+            >
+              <Sphere
+                id="asset-map-sphere"
+                fill="var(--card)"
+                stroke="var(--border)"
+                strokeWidth={0.7}
+              />
+              <Graticule stroke="var(--border)" strokeWidth={0.35} />
+              <Geographies geography={world as unknown as GeoJsonObject}>
+                {({ geographies }) =>
+                  geographies.map((geography) => (
+                    <Geography
+                      key={geography.rsmKey}
+                      geography={geography}
+                      fill="var(--muted)"
+                      stroke="var(--card)"
+                      strokeWidth={0.7 / displayZoom}
+                      className="outline-none transition-colors hover:fill-secondary focus:fill-secondary"
+                    />
+                  ))
+                }
+              </Geographies>
+              {located.map((item) => {
+                const radius = (4 + Math.sqrt(item.total / max) * 10) / displayZoom;
+                return (
+                  <Marker key={item.location} coordinates={item.coordinates}>
+                    <g
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`${item.location}: ${item.total} equipamentos`}
+                      onMouseEnter={() => setActive(item)}
+                      onMouseLeave={() => setActive(null)}
+                      onFocus={() => setActive(item)}
+                      onBlur={() => setActive(null)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          setActive((current) =>
+                            current?.location === item.location ? null : item,
+                          );
+                        }
+                      }}
+                      onClick={() =>
+                        setActive((current) => (current?.location === item.location ? null : item))
+                      }
+                      className="cursor-pointer outline-none"
+                    >
+                      <circle r={radius + 4 / displayZoom} fill="var(--primary)" opacity={0.16} />
+                      <circle
+                        r={radius}
+                        fill="var(--primary)"
+                        stroke="var(--card)"
+                        strokeWidth={2 / displayZoom}
+                      />
+                    </g>
+                  </Marker>
+                );
+              })}
+            </ZoomableGroup>
           </ComposableMap>
         )}
+
+        <div
+          role="group"
+          aria-label="Controles do mapa"
+          className="absolute right-3 top-3 flex flex-col items-center gap-1 rounded-lg border bg-card/95 p-1 shadow-sm"
+        >
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="Aproximar mapa"
+            title="Aproximar"
+            disabled={position.zoom >= 12}
+            onClick={() => changeZoom(1.5)}
+          >
+            <Plus className="size-4" />
+          </Button>
+          <span
+            className="text-xs tabular-nums"
+            aria-label={`Zoom ${displayZoom.toFixed(1)} vezes`}
+          >
+            {displayZoom.toFixed(1)}×
+          </span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="Afastar mapa"
+            title="Afastar"
+            disabled={position.zoom <= 1}
+            onClick={() => changeZoom(1 / 1.5)}
+          >
+            <Minus className="size-4" />
+          </Button>
+          <div className="w-6 border-t" />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="Centralizar no Brasil"
+            title="Voltar ao Brasil"
+            onClick={resetMap}
+          >
+            <LocateFixed className="size-4" />
+          </Button>
+        </div>
 
         {active && (
           <div className="pointer-events-none absolute left-3 top-3 rounded-md border bg-popover px-3 py-2 shadow-[var(--shadow-elevated)]">
@@ -198,14 +302,15 @@ export function AssetLocationMap({
         )}
       </div>
 
+      <p className="mt-2 text-xs text-muted-foreground">
+        Arraste para mover. Use + e − para aproximar ou afastar, ou Ctrl + rolagem.
+      </p>
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
         <span className="flex items-center gap-1.5">
-          <span className="size-2.5 rounded-full bg-primary" />
-          O tamanho indica a quantidade de equipamentos
+          <span className="size-2.5 rounded-full bg-primary" />O tamanho indica a quantidade de
+          equipamentos
         </span>
-        <span className="tabular-nums">
-          {unresolved} sem localização identificável
-        </span>
+        <span className="tabular-nums">{unresolved} sem localização identificável</span>
       </div>
     </div>
   );

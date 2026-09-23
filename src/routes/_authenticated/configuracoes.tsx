@@ -1,3 +1,4 @@
+import { QueryError } from "@/components/query-error";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -306,7 +307,9 @@ function TagManager({ canEdit, canDelete }: { canEdit: boolean; canDelete: boole
       toast.success("Etiqueta criada.");
     },
     onError: (e: Error) =>
-      toast.error(e.message.includes("duplicate") ? "Já existe uma etiqueta com este nome." : e.message),
+      toast.error(
+        e.message.includes("duplicate") ? "Já existe uma etiqueta com este nome." : e.message,
+      ),
   });
 
   const remove = useMutation({
@@ -396,7 +399,11 @@ function PreferenciasTermos() {
   const [draft, setDraft] = useState<TermSettings | null>(null);
   const [templateDraft, setTemplateDraft] = useState<{ id: string; body: string } | null>(null);
 
-  const { data: settings } = useQuery({
+  const {
+    data: settings,
+    isError: settingsError,
+    refetch: retrySettings,
+  } = useQuery({
     queryKey: ["app-settings", "termos"],
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
@@ -410,7 +417,11 @@ function PreferenciasTermos() {
     },
   });
 
-  const { data: templates } = useQuery({
+  const {
+    data: templates,
+    isError: templatesError,
+    refetch: retryTemplates,
+  } = useQuery({
     queryKey: ["templates"],
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
@@ -424,12 +435,19 @@ function PreferenciasTermos() {
   });
 
   useEffect(() => {
-    if (settings) setDraft(settings);
+    if (settings) setDraft((current) => current ?? settings);
   }, [settings]);
 
   const saveSettings = useMutation({
     mutationFn: async () => {
       if (!draft) return;
+      if (
+        !Number.isInteger(draft.prazo_dias ?? 7) ||
+        (draft.prazo_dias ?? 7) < 1 ||
+        !Number.isInteger(draft.lembrete_dias ?? 3) ||
+        (draft.lembrete_dias ?? 3) < 1
+      )
+        throw new Error("Os prazos devem ser números inteiros maiores que zero.");
       const { error } = await supabase
         .from("app_settings")
         .upsert(
@@ -441,6 +459,7 @@ function PreferenciasTermos() {
     },
     onSuccess: () => {
       toast.success("Preferências salvas.");
+      setDraft(null);
       queryClient.invalidateQueries({ queryKey: ["app-settings", "termos"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -468,6 +487,15 @@ function PreferenciasTermos() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  if (settingsError || templatesError)
+    return (
+      <QueryError
+        retry={() => {
+          void retrySettings();
+          void retryTemplates();
+        }}
+      />
+    );
   return (
     <div className="space-y-4">
       <Card>
@@ -529,14 +557,13 @@ function PreferenciasTermos() {
             <div>
               <p className="text-sm font-medium">Aviso automático de termo pendente</p>
               <p className="text-xs text-muted-foreground">
-                Destaca no painel e no menu os termos que passaram do prazo.
+                Habilita a cobrança de pendentes em Termos e envia a preferência ao agente. O
+                disparo automático de e-mails depende do serviço de assinatura.
               </p>
             </div>
             <Switch
               checked={draft?.lembrete_ativo ?? true}
-              onCheckedChange={(v) =>
-                setDraft({ ...(draft as TermSettings), lembrete_ativo: v })
-              }
+              onCheckedChange={(v) => setDraft({ ...(draft as TermSettings), lembrete_ativo: v })}
             />
           </div>
           <Button onClick={() => saveSettings.mutate()} disabled={saveSettings.isPending}>

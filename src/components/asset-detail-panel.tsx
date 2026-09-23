@@ -1,4 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { ChecklistFields, emptyChecklist } from "@/components/assignment-checklist";
+import { parseMoney, validatePeriod } from "@/lib/validation";
+import { QueryError } from "@/components/query-error";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { Timeline, type TimelineEvent } from "@/components/timeline";
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -68,8 +71,14 @@ import {
   formatMoney,
 } from "@/lib/format";
 import { renderAgreement } from "@/lib/agreements";
+import {
+  localCalendarDate,
+  uploadChecklistPhotos,
+  assertChecklist,
+} from "@/lib/assignment-workflow";
+import { fetchAll } from "@/lib/fetch-all";
 import { logAudit } from "@/lib/audit";
-import { deleteAssetCascade } from "@/lib/entity-delete";
+import { archiveAsset } from "@/lib/entity-delete";
 import { enviarParaAssinatura } from "@/lib/assinatura.functions";
 import { BitdefenderStatus } from "@/components/bitdefender-status";
 import { Switch } from "@/components/ui/switch";
@@ -118,6 +127,11 @@ export function AssetDetailPanel({
 
   const [mode, setMode] = useState<"view" | "edit">(initialMode);
   const [form, setForm] = useState<FormState>({ ...emptyForm });
+  const baseVersion = useRef<string | null>(null);
+  const [deliveryChecks, setDeliveryChecks] = useState(emptyChecklist());
+  const [deliveryPhotos, setDeliveryPhotos] = useState<File[]>([]);
+  const [returnChecks, setReturnChecks] = useState(emptyChecklist());
+  const [returnPhotos, setReturnPhotos] = useState<File[]>([]);
   const [dirty, setDirty] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
   const [returnOpen, setReturnOpen] = useState(false);
@@ -126,7 +140,7 @@ export function AssetDetailPanel({
   const [returnCondition, setReturnCondition] = useState("");
   const [assignForm, setAssignForm] = useState({
     employee_id: "",
-    assigned_at: new Date().toISOString().slice(0, 10),
+    assigned_at: localCalendarDate(),
     delivery_condition: "Novo / em perfeito estado",
   });
 
@@ -134,7 +148,12 @@ export function AssetDetailPanel({
     if (assetId) setMode(initialMode);
   }, [assetId, initialMode]);
 
-  const { data: asset, isLoading } = useQuery({
+  const {
+    data: asset,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ["asset", assetId],
     enabled: open,
     queryFn: async () => {
@@ -148,7 +167,11 @@ export function AssetDetailPanel({
     },
   });
 
-  const { data: history } = useQuery({
+  const {
+    data: history,
+    isError: historyError,
+    refetch: retryHistory,
+  } = useQuery({
     queryKey: ["asset-history", assetId],
     enabled: open,
     queryFn: async () => {
@@ -239,18 +262,22 @@ export function AssetDetailPanel({
     queryKey: ["employees-simple"],
     enabled: open,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("employees")
-        .select("id,full_name,email,cpf,job_title,department")
-        .eq("status", "ativo")
-        .order("full_name");
-      if (error) throw error;
-      return data;
+      return fetchAll((from, to) =>
+        supabase
+          .from("employees")
+          .select("id,full_name,email,cpf,job_title,department")
+          .eq("status", "ativo")
+          .is("archived_at", null)
+          .order("full_name")
+          .order("id")
+          .range(from, to),
+      );
     },
   });
 
   useEffect(() => {
-    if (!asset) return;
+    if (!asset || dirty) return;
+    baseVersion.current = asset.updated_at;
     setForm({
       asset_type: asset.asset_type ?? "notebook",
       status: asset.status ?? "disponivel",
@@ -271,10 +298,10 @@ export function AssetDetailPanel({
       notes: asset.notes ?? "",
     });
     setDirty(false);
-  }, [asset]);
+  }, [asset, dirty]);
 
   useEffect(() => {
-    if (!open || !onNavigate) return;
+    if (!open || !onNavigate || dirty) return;
     function onKey(e: KeyboardEvent) {
       const el = e.target as HTMLElement | null;
       if (el && ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName)) return;
@@ -289,7 +316,7 @@ export function AssetDetailPanel({
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onNavigate]);
+  }, [open, onNavigate, dirty]);
 
   const active = (history ?? []).find((h) => h.status === "ativo");
   const activeEmployee = (active?.employee as Employee | null) ?? null;
@@ -303,8 +330,13 @@ export function AssetDetailPanel({
   const save = useMutation({
     mutationFn: async () => {
       if (!assetId) return;
+      if (asset?.updated_at !== baseVersion.current)
+        throw new Error(
+          "Este ativo foi atualizado por outra pessoa. Reabra a ficha antes de salvar para comparar as alterações.",
+        );
+      validatePeriod(form.lease_start, form.lease_end);
       if (!form.serial_number.trim()) throw new Error("Informe o número de série.");
-      const { error } = await supabase
+      const { data: saved, error } = await supabase
         .from("assets")
         .update({
           asset_type: form.asset_type as "notebook",
@@ -320,25 +352,29 @@ export function AssetDetailPanel({
           last_seen_location: form.last_seen_location || null,
           bitdefender_installed: form.bitdefender_installed,
           condition: form.condition || null,
-          monthly_cost: form.monthly_cost ? Number(form.monthly_cost) : null,
+          monthly_cost: parseMoney(form.monthly_cost),
           lease_start: form.lease_start || null,
           lease_end: form.lease_end || null,
           notes: form.notes || null,
         })
-        .eq("id", assetId);
+        .eq("id", assetId)
+        .eq("updated_at", baseVersion.current!)
+        .select("*")
+        .maybeSingle();
       if (error) throw error;
+      if (!saved) throw new Error("O ativo mudou durante a edição. Atualize a ficha.");
       await logAudit({
         action: "atualizar",
         entity: "assets",
         entityId: assetId,
-        details: { serial_number: form.serial_number },
+        details: { antes: asset, depois: saved },
       });
     },
     onSuccess: () => {
       toast.success("Ativo atualizado.");
       setDirty(false);
       setMode("view");
-      queryClient.invalidateQueries({ queryKey: ["assets"] });
+      queryClient.invalidateQueries();
       queryClient.invalidateQueries({ queryKey: ["asset", assetId] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -347,13 +383,13 @@ export function AssetDetailPanel({
   const remove = useMutation({
     mutationFn: async () => {
       if (!assetId) return;
-      await deleteAssetCascade(assetId, { serial_number: asset?.serial_number });
+      await archiveAsset(assetId, !!asset?.archived_at);
     },
     onSuccess: () => {
-      toast.success("Ativo excluído.");
+      toast.success(asset?.archived_at ? "Cadastro restaurado." : "Cadastro arquivado.");
       setDeleteOpen(false);
       onOpenChange(false);
-      queryClient.invalidateQueries({ queryKey: ["assets"] });
+      queryClient.invalidateQueries();
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -363,53 +399,41 @@ export function AssetDetailPanel({
       const employee = employees?.find((e) => e.id === assignForm.employee_id);
       if (!employee || !asset) throw new Error("Selecione o colaborador.");
 
-      const { data: assignment, error } = await supabase
-        .from("assignments")
-        .insert({
-          employee_id: employee.id,
-          asset_id: asset.id,
-          assigned_at: new Date(assignForm.assigned_at).toISOString(),
-          delivery_condition: assignForm.delivery_condition || null,
-          created_by: user?.id ?? null,
-        })
-        .select("id")
-        .single();
-      if (error) throw error;
-
-      await supabase.from("assets").update({ status: "em_uso" }).eq("id", asset.id);
-
-      const { data: template } = await supabase
+      if (!assignForm.assigned_at) throw new Error("Informe a data da entrega.");
+      const { data: template, error: templateError } = await supabase
         .from("agreement_templates")
         .select("id,body")
         .eq("is_default", true)
         .maybeSingle();
 
-      if (template) {
-        const content = renderAgreement(template.body, employee, asset, {
+      if (templateError) throw templateError;
+      if (!template)
+        throw new Error("Configure um modelo de termo padrão antes de registrar a entrega.");
+      assertChecklist(deliveryChecks);
+      const deliveryId = crypto.randomUUID();
+      const uploaded = await uploadChecklistPhotos(deliveryId, deliveryPhotos);
+      const { error } = await supabase.rpc("create_assignment_complete", {
+        p_id: deliveryId,
+        p_employee_id: employee.id,
+        p_asset_id: asset.id,
+        p_assigned_at: new Date(assignForm.assigned_at + "T00:00:00").toISOString(),
+        p_delivery_condition: assignForm.delivery_condition,
+        p_notes: "",
+        p_template_id: template.id,
+        p_content: renderAgreement(template.body, employee, asset, {
           deliveryDate: assignForm.assigned_at,
           deliveryCondition: assignForm.delivery_condition,
-        });
-        const { error: agreementError } = await supabase.from("agreements").insert({
-          assignment_id: assignment.id,
-          employee_id: employee.id,
-          asset_id: asset.id,
-          template_id: template.id,
-          content,
-          status: "rascunho",
-        });
-        if (agreementError) throw agreementError;
-      }
-
-      await logAudit({
-        action: "vincular",
-        entity: "assignments",
-        entityId: assignment.id,
-        details: { employee: employee.email, serial_number: asset.serial_number },
+        }),
+        p_items: deliveryChecks,
+        p_photos: uploaded,
       });
+      if (error) throw error;
     },
     onSuccess: () => {
       toast.success("Vínculo criado e termo de uso gerado.");
       setAssignOpen(false);
+      setDeliveryChecks(emptyChecklist());
+      setDeliveryPhotos([]);
       setAssignForm({ ...assignForm, employee_id: "" });
       queryClient.invalidateQueries();
     },
@@ -419,21 +443,21 @@ export function AssetDetailPanel({
   const closeAssignment = useMutation({
     mutationFn: async () => {
       if (!active) throw new Error("Nenhum vínculo ativo.");
-      const { error } = await supabase
-        .from("assignments")
-        .update({
-          status: "encerrado",
-          returned_at: new Date().toISOString(),
-          return_condition: returnCondition || null,
-        })
-        .eq("id", active.id);
+      assertChecklist(returnChecks);
+      const uploaded = await uploadChecklistPhotos(active.id, returnPhotos);
+      const { error } = await supabase.rpc("close_assignment_complete", {
+        p_id: active.id,
+        p_condition: returnCondition,
+        p_items: returnChecks,
+        p_photos: uploaded,
+      });
       if (error) throw error;
-      await supabase.from("assets").update({ status: "disponivel" }).eq("id", assetId!);
-      await logAudit({ action: "devolver", entity: "assignments", entityId: active.id });
     },
     onSuccess: () => {
       toast.success("Devolução registrada.");
       setReturnOpen(false);
+      setReturnChecks(emptyChecklist());
+      setReturnPhotos([]);
       setReturnCondition("");
       queryClient.invalidateQueries();
     },
@@ -481,7 +505,10 @@ export function AssetDetailPanel({
       <Sheet
         open={open}
         onOpenChange={(v) => {
-          if (!v) onOpenChange(false);
+          if (!v && (!dirty || window.confirm("Descartar alterações não salvas?"))) {
+            setDirty(false);
+            onOpenChange(false);
+          }
         }}
       >
         <SheetContent
@@ -490,6 +517,22 @@ export function AssetDetailPanel({
           onOpenAutoFocus={(e) => e.preventDefault()}
         >
           <div className="flex h-full flex-col">
+            {dirty && (
+              <div role="status" className="flex items-center gap-3 border-b p-2 text-sm">
+                Rascunho local preservado.
+                <Button variant="outline" size="sm" onClick={() => setDirty(false)}>
+                  Descartar e recarregar
+                </Button>
+              </div>
+            )}
+            {isError && <QueryError retry={refetch} />}
+            {historyError && <QueryError retry={retryHistory} />}
+            {dirty && asset?.updated_at !== baseVersion.current && (
+              <p role="alert" className="p-3 text-sm text-destructive">
+                Este registro mudou em outra sessão. Descarte e recarregue para comparar antes de
+                salvar.
+              </p>
+            )}
             <div className="grid min-h-0 flex-1 md:grid-cols-[292px_1fr]">
               {/* Coluna lateral */}
               <aside className="overflow-y-auto border-b bg-white px-5 py-6 md:border-b-0 md:border-r">
@@ -515,7 +558,9 @@ export function AssetDetailPanel({
                   </p>
                   <div className="mt-3 flex flex-wrap items-center justify-center gap-1.5">
                     {asset && <StatusBadge value={asset.status} />}
-                    <Badge variant="outline">{assetTypeLabel[asset?.asset_type ?? ""] ?? "—"}</Badge>
+                    <Badge variant="outline">
+                      {assetTypeLabel[asset?.asset_type ?? ""] ?? "—"}
+                    </Badge>
                     {asset?.supplier && <Badge variant="secondary">{asset.supplier}</Badge>}
                     <SourceBadge intuneDeviceId={asset?.intune_device_id} />
                   </div>
@@ -579,7 +624,8 @@ export function AssetDetailPanel({
                       }
                       onClick={() => activeAgreement && send.mutate(activeAgreement.id)}
                     >
-                      <FileSignature className="mr-2 size-4 shrink-0" /> Enviar termo para assinatura
+                      <FileSignature className="mr-2 size-4 shrink-0" /> Enviar termo para
+                      assinatura
                     </Button>
                     {asset?.status === "manutencao" ? (
                       <Button
@@ -615,7 +661,8 @@ export function AssetDetailPanel({
                         className="flex-1"
                         onClick={() => setDeleteOpen(true)}
                       >
-                        <Trash2 className="mr-2 size-3.5" /> Excluir
+                        <Trash2 className="mr-2 size-3.5" />{" "}
+                        {asset?.archived_at ? "Restaurar" : "Arquivar"}
                       </Button>
                     </div>
                   </div>
@@ -629,6 +676,7 @@ export function AssetDetailPanel({
                         size="icon"
                         className="size-8"
                         aria-label="Ativo anterior"
+                        disabled={dirty}
                         onClick={() => onNavigate(-1)}
                       >
                         <ChevronUp className="size-4" />
@@ -638,6 +686,7 @@ export function AssetDetailPanel({
                         size="icon"
                         className="size-8"
                         aria-label="Próximo ativo"
+                        disabled={dirty}
                         onClick={() => onNavigate(1)}
                       >
                         <ChevronDown className="size-4" />
@@ -683,7 +732,10 @@ export function AssetDetailPanel({
                           <DetailField label="Modelo" value={form.model} />
                           <DetailField label="Condição" value={form.condition} />
                           <DetailField label="Localidade" value={form.location} />
-                          <DetailField label="Última localidade vista" value={form.last_seen_location} />
+                          <DetailField
+                            label="Última localidade vista"
+                            value={form.last_seen_location}
+                          />
                         </DetailSection>
 
                         <DetailSection title="Identificação">
@@ -698,9 +750,14 @@ export function AssetDetailPanel({
                           <DetailField label="Contrato" value={form.contract_number} />
                           <DetailField
                             label="Custo mensal"
-                            value={asset?.monthly_cost != null ? formatMoney(asset.monthly_cost) : ""}
+                            value={
+                              asset?.monthly_cost != null ? formatMoney(asset.monthly_cost) : ""
+                            }
                           />
-                          <DetailField label="Início da locação" value={formatDate(form.lease_start)} />
+                          <DetailField
+                            label="Início da locação"
+                            value={formatDate(form.lease_start)}
+                          />
                           <DetailField label="Fim da locação" value={formatDate(form.lease_end)} />
                         </DetailSection>
 
@@ -710,19 +767,22 @@ export function AssetDetailPanel({
                             label="Último check-in no Intune"
                             value={formatDateTime(asset?.intune_last_sync)}
                           />
-                          <DetailField label="Cadastrado em" value={formatDate(asset?.created_at)} />
+                          <DetailField
+                            label="Cadastrado em"
+                            value={formatDate(asset?.created_at)}
+                          />
                           <DetailField label="Observações" value={form.notes} />
                         </DetailSection>
                       </>
                     ) : (
                       <div className="grid gap-4 sm:grid-cols-2">
                         <div className="space-y-2">
-                          <Label>Tipo</Label>
+                          <Label htmlFor={"qa-assetdetailpaneltsx-28640-"}>Tipo</Label>
                           <Select
                             value={form.asset_type}
                             onValueChange={(v) => set("asset_type", v)}
                           >
-                            <SelectTrigger>
+                            <SelectTrigger id={"qa-assetdetailpaneltsx-28640-"}>
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -735,17 +795,19 @@ export function AssetDetailPanel({
                           </Select>
                         </div>
                         <div className="space-y-2">
-                          <Label>Situação</Label>
+                          <Label htmlFor={"qa-assetdetailpaneltsx-29476-"}>Situação</Label>
                           <Select value={form.status} onValueChange={(v) => set("status", v)}>
-                            <SelectTrigger>
+                            <SelectTrigger id={"qa-assetdetailpaneltsx-29476-"}>
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              {Object.entries(assetStatusLabel).map(([v, l]) => (
-                                <SelectItem key={v} value={v}>
-                                  {l}
-                                </SelectItem>
-                              ))}
+                              {Object.entries(assetStatusLabel)
+                                .filter(([v]) => (active ? v === "em_uso" : v !== "em_uso"))
+                                .map(([v, l]) => (
+                                  <SelectItem key={v} value={v}>
+                                    {l}
+                                  </SelectItem>
+                                ))}
                             </SelectContent>
                           </Select>
                         </div>
@@ -765,8 +827,17 @@ export function AssetDetailPanel({
                           ] as const
                         ).map(([key, label]) => (
                           <div key={key} className="space-y-2">
-                            <Label>{label}</Label>
+                            <Label
+                              htmlFor={
+                                "qa-assetdetailpaneltsx-31081-" + encodeURIComponent(String(label))
+                              }
+                            >
+                              {label}
+                            </Label>
                             <Input
+                              id={
+                                "qa-assetdetailpaneltsx-31081-" + encodeURIComponent(String(label))
+                              }
                               value={form[key]}
                               inputMode={key === "monthly_cost" ? "decimal" : undefined}
                               onChange={(e) => set(key, e.target.value)}
@@ -776,7 +847,9 @@ export function AssetDetailPanel({
                         <div className="flex items-center justify-between gap-3 rounded-lg border p-3 sm:col-span-2">
                           <div>
                             <Label htmlFor="bitdefender-installed">Bitdefender instalado</Label>
-                            <p className="text-xs text-muted-foreground">Estado detectado no último sincronismo.</p>
+                            <p className="text-xs text-muted-foreground">
+                              Estado detectado no último sincronismo.
+                            </p>
                           </div>
                           <Switch
                             id="bitdefender-installed"
@@ -785,24 +858,27 @@ export function AssetDetailPanel({
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label>Início da locação</Label>
+                          <Label htmlFor={"qa-assetdetailpaneltsx-32287-"}>Início da locação</Label>
                           <Input
+                            id={"qa-assetdetailpaneltsx-32287-"}
                             type="date"
                             value={form.lease_start}
                             onChange={(e) => set("lease_start", e.target.value)}
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label>Fim da locação</Label>
+                          <Label htmlFor={"qa-assetdetailpaneltsx-32665-"}>Fim da locação</Label>
                           <Input
+                            id={"qa-assetdetailpaneltsx-32665-"}
                             type="date"
                             value={form.lease_end}
                             onChange={(e) => set("lease_end", e.target.value)}
                           />
                         </div>
                         <div className="space-y-2 sm:col-span-2">
-                          <Label>Observações</Label>
+                          <Label htmlFor={"qa-assetdetailpaneltsx-33050-"}>Observações</Label>
                           <Textarea
+                            id={"qa-assetdetailpaneltsx-33050-"}
                             value={form.notes}
                             onChange={(e) => set("notes", e.target.value)}
                           />
@@ -860,9 +936,7 @@ export function AssetDetailPanel({
                                 <p className="text-sm font-medium">{employee?.full_name ?? "—"}</p>
                                 <p className="text-xs text-muted-foreground">
                                   Entrega {formatDate(h.assigned_at)}
-                                  {h.returned_at
-                                    ? ` · Devolução ${formatDate(h.returned_at)}`
-                                    : ""}
+                                  {h.returned_at ? ` · Devolução ${formatDate(h.returned_at)}` : ""}
                                 </p>
                               </div>
                               <div className="flex items-center gap-1.5">
@@ -909,10 +983,12 @@ export function AssetDetailPanel({
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="font-display">Excluir equipamento?</AlertDialogTitle>
+            <AlertDialogTitle className="font-display">
+              {asset?.archived_at ? "Restaurar" : "Arquivar"} equipamento?
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              {title} · série {asset?.serial_number ?? "—"}. O histórico de vínculos, termos e
-              documentos deste equipamento também serão apagados. Esta ação não pode ser desfeita.
+              {title} · série {asset?.serial_number ?? "—"}. O histórico, os termos e os documentos
+              serão preservados. O cadastro poderá ser restaurado.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -924,7 +1000,7 @@ export function AssetDetailPanel({
               }}
               disabled={remove.isPending}
             >
-              Excluir definitivamente
+              Confirmar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -941,12 +1017,12 @@ export function AssetDetailPanel({
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Colaborador</Label>
+              <Label htmlFor={"qa-assetdetailpaneltsx-39537-"}>Colaborador</Label>
               <Select
                 value={assignForm.employee_id}
                 onValueChange={(v) => setAssignForm({ ...assignForm, employee_id: v })}
               >
-                <SelectTrigger>
+                <SelectTrigger id={"qa-assetdetailpaneltsx-39537-"}>
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
                 <SelectContent>
@@ -959,16 +1035,18 @@ export function AssetDetailPanel({
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Data de entrega</Label>
+              <Label htmlFor={"qa-assetdetailpaneltsx-40233-"}>Data de entrega</Label>
               <Input
+                id={"qa-assetdetailpaneltsx-40233-"}
                 type="date"
                 value={assignForm.assigned_at}
                 onChange={(e) => setAssignForm({ ...assignForm, assigned_at: e.target.value })}
               />
             </div>
             <div className="space-y-2">
-              <Label>Condição de entrega</Label>
+              <Label htmlFor={"qa-assetdetailpaneltsx-40546-"}>Condição de entrega</Label>
               <Input
+                id={"qa-assetdetailpaneltsx-40546-"}
                 value={assignForm.delivery_condition}
                 onChange={(e) =>
                   setAssignForm({ ...assignForm, delivery_condition: e.target.value })
@@ -976,6 +1054,12 @@ export function AssetDetailPanel({
               />
             </div>
           </div>
+          <ChecklistFields
+            items={deliveryChecks}
+            onChange={setDeliveryChecks}
+            photos={deliveryPhotos}
+            onPhotos={setDeliveryPhotos}
+          />
           <DialogFooter>
             <Button variant="outline" onClick={() => setAssignOpen(false)}>
               Cancelar
@@ -996,13 +1080,20 @@ export function AssetDetailPanel({
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <Label>Condição de devolução</Label>
+            <Label htmlFor={"qa-assetdetailpaneltsx-41791-"}>Condição de devolução</Label>
             <Textarea
+              id={"qa-assetdetailpaneltsx-41791-"}
               value={returnCondition}
               onChange={(e) => setReturnCondition(e.target.value)}
               placeholder="Ex.: equipamento em bom estado, com carregador."
             />
           </div>
+          <ChecklistFields
+            items={returnChecks}
+            onChange={setReturnChecks}
+            photos={returnPhotos}
+            onPhotos={setReturnPhotos}
+          />
           <DialogFooter>
             <Button variant="outline" onClick={() => setReturnOpen(false)}>
               Cancelar
@@ -1014,11 +1105,7 @@ export function AssetDetailPanel({
         </DialogContent>
       </Dialog>
 
-      <TagPicker
-        assetIds={assetId ? [assetId] : []}
-        open={tagsOpen}
-        onOpenChange={setTagsOpen}
-      />
+      <TagPicker assetIds={assetId ? [assetId] : []} open={tagsOpen} onOpenChange={setTagsOpen} />
     </>
   );
 }

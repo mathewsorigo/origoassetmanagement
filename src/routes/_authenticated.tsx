@@ -48,6 +48,7 @@ import { roleLabel } from "@/lib/format";
 import { rememberPendingQr } from "@/lib/pending-qr";
 import { setAuthNotice } from "@/lib/auth-notice";
 import { RealtimeSync } from "@/components/realtime-sync";
+import { exitLocalPreview, hasLocalPreviewData, isLocalPreview } from "@/lib/local-preview";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -86,10 +87,21 @@ function AuthenticatedLayout() {
     queryKey: ["agreements-pending-count"],
     enabled: !!session,
     queryFn: async () => {
+      const settings = await supabase
+        .from("app_settings")
+        .select("value")
+        .eq("key", "termos")
+        .maybeSingle();
+      if (settings.error) throw settings.error;
+      const prefs = (settings.data?.value ?? {}) as Record<string, unknown>;
+      if (prefs["lembrete_ativo"] === false) return 0;
+      const days = Number(prefs["lembrete_dias"]) > 0 ? Number(prefs["lembrete_dias"]) : 3;
+      const cutoff = new Date(Date.now() - days * 86400000).toISOString();
       const { count, error } = await supabase
         .from("agreements")
         .select("id", { count: "exact", head: true })
-        .in("status", ["rascunho", "enviado", "visualizado"]);
+        .in("status", ["rascunho", "enviado", "visualizado"])
+        .or("and(sent_at.is.null,created_at.lt." + cutoff + "),sent_at.lt." + cutoff);
       if (error) throw error;
       return count ?? 0;
     },
@@ -140,6 +152,10 @@ function AuthenticatedLayout() {
   ]);
 
   async function signOut() {
+    if (isLocalPreview()) {
+      exitLocalPreview();
+      return;
+    }
     await queryClient.cancelQueries();
     queryClient.clear();
     await supabase.auth.signOut();
@@ -171,7 +187,7 @@ function AuthenticatedLayout() {
 
   return (
     <div className="flex h-dvh overflow-hidden bg-background">
-      <RealtimeSync />
+      {!isLocalPreview() && <RealtimeSync />}
       {/* Trilha de ícones */}
       <aside
         className={cn(
@@ -226,6 +242,22 @@ function AuthenticatedLayout() {
       )}
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        {isLocalPreview() && (
+          <div
+            className="flex shrink-0 items-center justify-between gap-3 border-b bg-amber-50 px-4 py-2 text-xs text-amber-950"
+            role="status"
+          >
+            <span>
+              Demonstração local ·{" "}
+              {hasLocalPreviewData()
+                ? "Cópia do banco · Somente consulta"
+                : "Prévia visual com dados vazios · Alterações não são salvas"}
+            </span>
+            <button className="shrink-0 font-medium underline" onClick={exitLocalPreview}>
+              Sair da demonstração
+            </button>
+          </div>
+        )}
         {/* Barra superior */}
         <header className="z-20 flex h-16 shrink-0 items-center gap-3 border-b bg-card/90 px-4 backdrop-blur sm:px-6">
           <Button

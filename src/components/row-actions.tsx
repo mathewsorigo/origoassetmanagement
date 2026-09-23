@@ -17,12 +17,14 @@ export type RowExtraAction = {
 export function RowActions({
   onEdit,
   onDelete,
+  deleteLabel = "Excluir",
   label = "Ações",
   extra,
 }: {
   onEdit: () => void;
   onDelete: () => void;
   label?: string;
+  deleteLabel?: string;
   extra?: RowExtraAction[];
 }) {
   return (
@@ -60,7 +62,7 @@ export function RowActions({
             onDelete();
           }}
         >
-          <Trash2 className="mr-2 size-4" /> Excluir
+          <Trash2 className="mr-2 size-4" /> {deleteLabel}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

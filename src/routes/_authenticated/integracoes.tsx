@@ -1,3 +1,4 @@
+import { QueryError } from "@/components/query-error";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -13,10 +14,7 @@ import {
 } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
-import {
-  IntegrationCard,
-  type IntegrationState,
-} from "@/components/integration-card";
+import { IntegrationCard, type IntegrationState } from "@/components/integration-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -120,7 +118,12 @@ function Integracoes() {
   const runTest = useServerFn(testIntegration);
   const runSync = useServerFn(syncIntegration);
 
-  const { data: settings, isLoading } = useQuery({
+  const {
+    data: settings,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ["integration-settings"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -132,7 +135,11 @@ function Integracoes() {
     },
   });
 
-  const { data: runs } = useQuery({
+  const {
+    data: runs,
+    isError: runsError,
+    refetch: retryRuns,
+  } = useQuery({
     queryKey: ["integration-runs"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -198,6 +205,7 @@ function Integracoes() {
     }
   }
 
+  if (isError) return <QueryError retry={refetch} />;
   return (
     <div>
       <PageHeader
@@ -215,13 +223,12 @@ function Integracoes() {
       ) : (
         <div className="grid gap-3 lg:grid-cols-2">
           {(settings ?? []).map((s) => {
-            const m =
-              meta[s.provider] ?? {
-                title: s.provider,
-                description: "",
-                urlLabel: "Endereço do serviço",
-                icon: PlugZap,
-              };
+            const m = meta[s.provider] ?? {
+              title: s.provider,
+              description: "",
+              urlLabel: "Endereço do serviço",
+              icon: PlugZap,
+            };
             const value = drafts[s.id] ?? s.base_url ?? "";
             const last = lastByProvider.get(s.provider);
             const state: IntegrationState = !s.base_url
@@ -265,7 +272,9 @@ function Integracoes() {
           <CardTitle>Execuções recentes</CardTitle>
         </CardHeader>
         <CardContent>
-          {(runs ?? []).length === 0 ? (
+          {runsError ? (
+            <QueryError retry={retryRuns} />
+          ) : (runs ?? []).length === 0 ? (
             <EmptyState
               icon={HistoryIcon}
               title="Nenhuma execução registrada"
@@ -280,7 +289,7 @@ function Integracoes() {
                     <TableHead>Serviço</TableHead>
                     <TableHead>Ação</TableHead>
                     <TableHead>Resultado</TableHead>
-                                        <TableHead>Mensagem</TableHead>
+                    <TableHead>Mensagem</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -296,7 +305,7 @@ function Integracoes() {
                       <TableCell>
                         <StatusBadge value={r.status} />
                       </TableCell>
-                                            <TableCell className="max-w-96 truncate text-xs text-muted-foreground">
+                      <TableCell className="max-w-96 truncate text-xs text-muted-foreground">
                         {r.message ?? "—"}
                       </TableCell>
                     </TableRow>
@@ -310,7 +319,9 @@ function Integracoes() {
 
       <div className="mt-4 rounded-lg border bg-card p-4 text-[13px] text-muted-foreground">
         Endereço para o hermes-agent devolver o documento assinado:{" "}
-        <code className="rounded bg-muted px-1.5 py-0.5 text-xs">/api/public/hermes/assinatura</code>{" "}
+        <code className="rounded bg-muted px-1.5 py-0.5 text-xs">
+          /api/public/hermes/assinatura
+        </code>{" "}
         (POST, autenticado por chave compartilhada).
       </div>
     </div>

@@ -1,3 +1,5 @@
+import { toast } from "sonner";
+import { QueryError } from "@/components/query-error";
 import { useQuery } from "@tanstack/react-query";
 import { FileText, Download } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,18 +15,11 @@ export async function openDocument(path: string) {
   window.open(data.signedUrl, "_blank", "noopener");
 }
 
-export function DocumentsPanel({
-  filter,
-}: {
-  filter: { employeeId?: string; assetId?: string };
-}) {
-  const { data } = useQuery({
+export function DocumentsPanel({ filter }: { filter: { employeeId?: string; assetId?: string } }) {
+  const { data, isError, refetch } = useQuery({
     queryKey: ["documents", filter],
     queryFn: async () => {
-      let query = supabase
-        .from("documents")
-        .select("*")
-        .order("created_at", { ascending: false });
+      let query = supabase.from("documents").select("*").order("created_at", { ascending: false });
       if (filter.employeeId) query = query.eq("employee_id", filter.employeeId);
       if (filter.assetId) query = query.eq("asset_id", filter.assetId);
       const { data, error } = await query;
@@ -33,6 +28,7 @@ export function DocumentsPanel({
     },
   });
 
+  if (isError) return <QueryError retry={refetch} />;
   return (
     <Card>
       <CardHeader>
@@ -45,7 +41,10 @@ export function DocumentsPanel({
           </p>
         )}
         {(data ?? []).map((doc) => (
-          <div key={doc.id} className="flex items-center justify-between gap-3 rounded-lg border p-3">
+          <div
+            key={doc.id}
+            className="flex items-center justify-between gap-3 rounded-lg border p-3"
+          >
             <div className="flex min-w-0 items-center gap-3">
               <FileText className="size-4 shrink-0 text-primary" />
               <div className="min-w-0">
@@ -56,7 +55,14 @@ export function DocumentsPanel({
                 </p>
               </div>
             </div>
-            <Button variant="ghost" size="icon" onClick={() => openDocument(doc.storage_path)}>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={"Abrir documento " + doc.file_name}
+              onClick={() =>
+                void openDocument(doc.storage_path).catch((e: Error) => toast.error(e.message))
+              }
+            >
               <Download className="size-4" />
             </Button>
           </div>

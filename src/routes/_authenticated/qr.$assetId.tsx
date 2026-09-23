@@ -1,3 +1,4 @@
+import { assertChecklist, uploadChecklistPhotos } from "@/lib/assignment-workflow";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -93,7 +94,9 @@ function BaixaPorQr() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("assignments")
-        .select("id,assigned_at,returned_at,status,delivery_condition,employee:employees(id,full_name,email)")
+        .select(
+          "id,assigned_at,returned_at,status,delivery_condition,employee:employees(id,full_name,email)",
+        )
         .eq("asset_id", assetId)
         .order("assigned_at", { ascending: false });
       if (error) throw error;
@@ -122,43 +125,15 @@ function BaixaPorQr() {
   const baixa = useMutation({
     mutationFn: async () => {
       if (!active) throw new Error("Este equipamento não tem vínculo ativo.");
-      const { error } = await supabase
-        .from("assignments")
-        .update({
-          status: "encerrado",
-          returned_at: new Date().toISOString(),
-          return_condition: condition || null,
-        })
-        .eq("id", active.id);
-      if (error) throw error;
-      const { error: assetError } = await supabase
-        .from("assets")
-        .update({ status: "disponivel" })
-        .eq("id", assetId);
-      if (assetError) throw assetError;
-
-      await logAudit({
-        action: "baixa_qr",
-        entity: "assignments",
-        entityId: active.id,
-        details: {
-          serial_number: asset?.serial_number ?? null,
-          employee: active.employee?.email ?? null,
-        },
+      assertChecklist(checklist);
+      const uploaded = await uploadChecklistPhotos(active.id, photos);
+      const { error } = await supabase.rpc("close_assignment_complete", {
+        p_id: active.id,
+        p_condition: condition,
+        p_items: checklist,
+        p_photos: uploaded,
       });
-
-      try {
-        await saveAssignmentChecklist({
-          assignmentId: active.id,
-          kind: "devolucao",
-          items: checklist,
-          photos,
-          userId: user?.id,
-        });
-      } catch (checklistError) {
-        console.error("Falha ao salvar checklist de devolução:", checklistError);
-      }
-
+      if (error) throw error;
       return { assignmentId: active.id, employee: active.employee?.full_name ?? "—" };
     },
     onSuccess: (result) => {
@@ -173,18 +148,11 @@ function BaixaPorQr() {
   const desfazer = useMutation({
     mutationFn: async () => {
       if (!done) return;
-      const { error } = await supabase
-        .from("assignments")
-        .update({ status: "ativo", returned_at: null, return_condition: null })
-        .eq("id", done.assignmentId);
-      if (error) throw error;
-      await supabase.from("assets").update({ status: "em_uso" }).eq("id", assetId);
-      await logAudit({
-        action: "desfazer_baixa_qr",
-        entity: "assignments",
-        entityId: done.assignmentId,
-        details: { serial_number: asset?.serial_number ?? null },
+      const { error } = await supabase.rpc("qa_transaction", {
+        p_action: "undo_return",
+        p_data: { id: done.assignmentId },
       });
+      if (error) throw error;
     },
     onSuccess: () => {
       setDone(null);
@@ -282,12 +250,16 @@ function BaixaPorQr() {
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              O equipamento voltou para <strong>Disponível</strong> e o vínculo com{" "}
-              {done.employee} foi encerrado.
+              O equipamento voltou para <strong>Disponível</strong> e o vínculo com {done.employee}{" "}
+              foi encerrado.
             </p>
             <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
               {undoLeft > 0 && (
-                <Button variant="outline" onClick={() => desfazer.mutate()} disabled={desfazer.isPending}>
+                <Button
+                  variant="outline"
+                  onClick={() => desfazer.mutate()}
+                  disabled={desfazer.isPending}
+                >
                   {desfazer.isPending ? (
                     <Loader2 className="mr-2 size-4 animate-spin" />
                   ) : (
@@ -315,7 +287,9 @@ function BaixaPorQr() {
           <CardContent className="space-y-4">
             <div className="rounded-lg border bg-muted/30 p-3 text-sm">
               <p className="break-words font-medium">{active.employee?.full_name ?? "—"}</p>
-              <p className="break-all text-xs text-muted-foreground">{active.employee?.email ?? ""}</p>
+              <p className="break-all text-xs text-muted-foreground">
+                {active.employee?.email ?? ""}
+              </p>
               <p className="mt-1 text-xs text-muted-foreground">
                 Em uso desde {formatDateTime(active.assigned_at)}
               </p>
@@ -340,18 +314,18 @@ function BaixaPorQr() {
                   onPhotos={setPhotos}
                 />
                 <div className="sticky bottom-0 -mx-4 border-t bg-card/95 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0">
-                <Button
-                  className="h-12 w-full text-base"
-                  onClick={() => baixa.mutate()}
-                  disabled={baixa.isPending}
-                >
-                  {baixa.isPending ? (
-                    <Loader2 className="mr-2 size-4 animate-spin" />
-                  ) : (
-                    <CheckCircle2 className="mr-2 size-4" />
-                  )}
-                  Confirmar devolução
-                </Button>
+                  <Button
+                    className="h-12 w-full text-base"
+                    onClick={() => baixa.mutate()}
+                    disabled={baixa.isPending}
+                  >
+                    {baixa.isPending ? (
+                      <Loader2 className="mr-2 size-4 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="mr-2 size-4" />
+                    )}
+                    Confirmar devolução
+                  </Button>
                 </div>
               </>
             ) : (
@@ -373,7 +347,8 @@ function BaixaPorQr() {
             </p>
             {lastClosed ? (
               <p className="text-xs">
-                Última devolução: {lastClosed.returned_at ? formatDateTime(lastClosed.returned_at) : "—"}
+                Última devolução:{" "}
+                {lastClosed.returned_at ? formatDateTime(lastClosed.returned_at) : "—"}
                 {lastClosed.employee ? ` · ${lastClosed.employee.full_name}` : ""}
               </p>
             ) : null}
@@ -402,7 +377,12 @@ function BaixaPorQr() {
               <p className="font-medium">Conferência em andamento</p>
               <p className="break-words text-xs text-muted-foreground">{openSession.name}</p>
             </div>
-            <Button variant="outline" className="h-11 w-full sm:h-10 sm:w-auto" onClick={() => conferir.mutate()} disabled={conferir.isPending}>
+            <Button
+              variant="outline"
+              className="h-11 w-full sm:h-10 sm:w-auto"
+              onClick={() => conferir.mutate()}
+              disabled={conferir.isPending}
+            >
               {conferir.isPending ? (
                 <Loader2 className="mr-2 size-4 animate-spin" />
               ) : (
