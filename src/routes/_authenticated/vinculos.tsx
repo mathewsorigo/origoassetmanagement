@@ -481,6 +481,7 @@ function Vinculos() {
             })}
           </TableBody>
         </Table>
+        </div>
         <TablePagination
           className="-mx-4 mt-3 px-4"
           noun="vínculos"
