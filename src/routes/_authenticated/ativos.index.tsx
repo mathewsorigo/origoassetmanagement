@@ -263,7 +263,8 @@ function Ativos() {
         if (!tags.some((tag) => tag.id === tagFilter)) return false;
       }
       if (!t) return true;
-      return [a.serial_number, a.brand, a.model, a.patrimony, a.imei, a.location, a.last_seen_location]
+      const holder = holderOf(a)?.full_name ?? null;
+      return [a.serial_number, a.brand, a.model, a.patrimony, a.imei, a.location, a.last_seen_location, holder]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(t));
     });
@@ -303,7 +304,7 @@ function Ativos() {
     });
   }
 
-  function holderOf(asset: (typeof filtered)[number]) {
+  function holderOf(asset: NonNullable<typeof assets>[number]) {
     const active = (asset.assignments as Array<{
       status: string;
       employee: { id: string; full_name: string } | null;
@@ -407,7 +408,7 @@ function Ativos() {
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               className="pl-9"
-              placeholder="Buscar por série, modelo, patrimônio…"
+              placeholder="Buscar por série, modelo, patrimônio, usuário…"
               value={term}
               onChange={(e) => setTerm(e.target.value)}
             />
