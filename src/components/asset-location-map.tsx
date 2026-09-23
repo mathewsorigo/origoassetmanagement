@@ -108,10 +108,8 @@ export function AssetLocationMap({
   }, [data, withoutLocation]);
   const max = Math.max(1, ...located.map((item) => item.total));
 
-  // geoEqualEarth's globe has a ~2.05:1 width-to-height ratio. Size the
-  // container height to match so the globe fills it without empty space.
   const width = size.width || 800;
-  const height = size.width > 0 ? Math.round(width / 2.05) : 320;
+  const height = size.height || 320;
 
   const projection = useMemo(() => {
     return geoEqualEarth().fitExtent(
@@ -124,11 +122,10 @@ export function AssetLocationMap({
   }, [width, height]);
 
   return (
-    <div>
+    <div className="flex h-full min-h-0 flex-1 flex-col">
       <div
         ref={containerRef}
-        className="relative overflow-hidden rounded-md bg-muted/40"
-        style={{ height: size.width > 0 ? `${height}px` : undefined }}
+        className="relative min-h-0 flex-1 overflow-hidden rounded-md bg-muted/40"
       >
         {size.width > 0 && (
           <ComposableMap
