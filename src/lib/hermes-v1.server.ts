@@ -66,7 +66,7 @@ function dbErr(error: any): never {
   throw fail(400, "db_error", error?.message ?? "Falha no banco.");
 }
 
-async function run<T = any>(q: PromiseLike<{ data: T; error: any }>): Promise<T> {
+async function run(q: PromiseLike<{ data: any; error: any }>): Promise<any> {
   const { data, error } = await q;
   if (error) dbErr(error);
   return data;
@@ -337,7 +337,7 @@ const assignmentCreate = z
   })
   .strict();
 
-async function openAssignment(ctx: Ctx, asset: any, employee: any, d: { assigned_at?: string; delivery_condition?: string | null; notes?: string | null; create_agreement: boolean }) {
+async function openAssignment(ctx: Ctx, asset: any, employee: any, d: any) {
   if (asset.is_test !== employee.is_test)
     throw fail(422, "test_isolation", "Registros de teste só podem ser vinculados a outros registros de teste.");
   if (employee.status === "inativo") throw fail(422, "employee_inactive", "Colaborador inativo não pode receber equipamento.");
