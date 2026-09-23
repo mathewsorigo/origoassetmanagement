@@ -36,6 +36,7 @@ import { assetTypeLabel, formatDate, formatDateTime, formatMoney } from "@/lib/f
 import { renderAgreement } from "@/lib/agreements";
 import { logAudit } from "@/lib/audit";
 import { enviarParaAssinatura } from "@/lib/assinatura.functions";
+import { BitdefenderStatus } from "@/components/bitdefender-status";
 
 export const Route = createFileRoute("/_authenticated/ativos/$id")({
   head: () => ({
@@ -239,6 +240,7 @@ function AtivoDetalhe() {
             <Badge variant="outline">{assetTypeLabel[asset?.asset_type ?? ""] ?? "—"}</Badge>
             {asset?.supplier && <Badge variant="secondary">{asset.supplier}</Badge>}
             <SourceBadge intuneDeviceId={asset?.intune_device_id} />
+            <BitdefenderStatus installed={asset?.bitdefender_installed} withLabel />
           </div>
           <p className="mt-2 text-sm text-muted-foreground">
             Série {asset?.serial_number ?? "—"}
@@ -355,7 +357,8 @@ function AtivoDetalhe() {
               fields={[
                 ["Localidade", asset?.location],
                 ["ID no Intune", asset?.intune_device_id],
-                ["Última sincronização", formatDateTime(asset?.intune_last_sync)],
+                ["Último check-in no Intune", formatDateTime(asset?.intune_last_sync)],
+                ["Última localidade vista", asset?.last_seen_location],
                 ["Observações", asset?.notes],
               ]}
             />

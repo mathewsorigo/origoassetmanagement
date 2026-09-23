@@ -279,6 +279,7 @@ export type Database = {
       assets: {
         Row: {
           asset_type: Database["public"]["Enums"]["asset_type"]
+          bitdefender_installed: boolean
           brand: string | null
           condition: string | null
           contract_number: string | null
@@ -288,6 +289,7 @@ export type Database = {
           intune_device_id: string | null
           intune_last_sync: string | null
           is_test: boolean
+          last_seen_location: string | null
           lease_end: string | null
           lease_start: string | null
           location: string | null
@@ -302,6 +304,7 @@ export type Database = {
         }
         Insert: {
           asset_type?: Database["public"]["Enums"]["asset_type"]
+          bitdefender_installed?: boolean
           brand?: string | null
           condition?: string | null
           contract_number?: string | null
@@ -311,6 +314,7 @@ export type Database = {
           intune_device_id?: string | null
           intune_last_sync?: string | null
           is_test?: boolean
+          last_seen_location?: string | null
           lease_end?: string | null
           lease_start?: string | null
           location?: string | null
@@ -325,6 +329,7 @@ export type Database = {
         }
         Update: {
           asset_type?: Database["public"]["Enums"]["asset_type"]
+          bitdefender_installed?: boolean
           brand?: string | null
           condition?: string | null
           contract_number?: string | null
@@ -334,6 +339,7 @@ export type Database = {
           intune_device_id?: string | null
           intune_last_sync?: string | null
           is_test?: boolean
+          last_seen_location?: string | null
           lease_end?: string | null
           lease_start?: string | null
           location?: string | null

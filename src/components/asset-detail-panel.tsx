@@ -71,6 +71,8 @@ import { renderAgreement } from "@/lib/agreements";
 import { logAudit } from "@/lib/audit";
 import { deleteAssetCascade } from "@/lib/entity-delete";
 import { enviarParaAssinatura } from "@/lib/assinatura.functions";
+import { BitdefenderStatus } from "@/components/bitdefender-status";
+import { Switch } from "@/components/ui/switch";
 
 type Employee = { id: string; full_name: string; email: string };
 
@@ -85,6 +87,8 @@ const emptyForm = {
   supplier: "",
   contract_number: "",
   location: "",
+  last_seen_location: "",
+  bitdefender_installed: false,
   condition: "",
   monthly_cost: "",
   lease_start: "",
@@ -258,6 +262,8 @@ export function AssetDetailPanel({
       supplier: asset.supplier ?? "",
       contract_number: asset.contract_number ?? "",
       location: asset.location ?? "",
+      last_seen_location: asset.last_seen_location ?? "",
+      bitdefender_installed: asset.bitdefender_installed ?? false,
       condition: asset.condition ?? "",
       monthly_cost: asset.monthly_cost != null ? String(asset.monthly_cost) : "",
       lease_start: asset.lease_start ? String(asset.lease_start).slice(0, 10) : "",
@@ -289,7 +295,7 @@ export function AssetDetailPanel({
   const activeEmployee = (active?.employee as Employee | null) ?? null;
   const activeAgreement = (active?.agreements as Array<{ id: string; status: string }> | null)?.[0];
 
-  function set<K extends keyof FormState>(key: K, value: string) {
+  function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((f) => ({ ...f, [key]: value }));
     setDirty(true);
   }
@@ -311,6 +317,8 @@ export function AssetDetailPanel({
           supplier: form.supplier || null,
           contract_number: form.contract_number || null,
           location: form.location || null,
+          last_seen_location: form.last_seen_location || null,
+          bitdefender_installed: form.bitdefender_installed,
           condition: form.condition || null,
           monthly_cost: form.monthly_cost ? Number(form.monthly_cost) : null,
           lease_start: form.lease_start || null,
@@ -672,6 +680,7 @@ export function AssetDetailPanel({
                           <DetailField label="Modelo" value={form.model} />
                           <DetailField label="Condição" value={form.condition} />
                           <DetailField label="Localidade" value={form.location} />
+                          <DetailField label="Última localidade vista" value={form.last_seen_location} />
                         </DetailSection>
 
                         <DetailSection title="Identificação">
@@ -695,9 +704,13 @@ export function AssetDetailPanel({
                         <DetailSection title="Gestão" columns={1}>
                           <DetailField label="Usuário atual" value={activeEmployee?.full_name} />
                           <DetailField
-                            label="Última verificação no Intune"
+                            label="Último check-in no Intune"
                             value={formatDateTime(asset?.intune_last_sync)}
                           />
+                          <div className="space-y-1">
+                            <p className="text-[11px] font-semibold uppercase text-muted-foreground">Proteção</p>
+                            <BitdefenderStatus installed={form.bitdefender_installed} withLabel />
+                          </div>
                           <DetailField label="Cadastrado em" value={formatDate(asset?.created_at)} />
                           <DetailField label="Observações" value={form.notes} />
                         </DetailSection>
@@ -747,6 +760,7 @@ export function AssetDetailPanel({
                             ["supplier", "Fornecedor"],
                             ["contract_number", "Contrato"],
                             ["location", "Localidade"],
+                            ["last_seen_location", "Última localidade vista"],
                             ["condition", "Condição"],
                             ["monthly_cost", "Custo mensal (R$)"],
                           ] as const
@@ -760,6 +774,17 @@ export function AssetDetailPanel({
                             />
                           </div>
                         ))}
+                        <div className="flex items-center justify-between gap-3 rounded-lg border p-3 sm:col-span-2">
+                          <div>
+                            <Label htmlFor="bitdefender-installed">Bitdefender instalado</Label>
+                            <p className="text-xs text-muted-foreground">Estado detectado no último sincronismo.</p>
+                          </div>
+                          <Switch
+                            id="bitdefender-installed"
+                            checked={form.bitdefender_installed}
+                            onCheckedChange={(checked) => set("bitdefender_installed", checked)}
+                          />
+                        </div>
                         <div className="space-y-2">
                           <Label>Início da locação</Label>
                           <Input

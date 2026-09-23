@@ -1,0 +1,15 @@
+ALTER PUBLICATION supabase_realtime ADD TABLE public.assets;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.employees;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.assignments;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.agreements;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.documents;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.inventory_sessions;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.inventory_checks;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.tags;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.asset_tags;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.locations;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.vendors;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.departments;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.agreement_templates;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.integration_settings;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.integration_runs;

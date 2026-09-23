@@ -57,6 +57,8 @@ const assetHeaders = [
   "inicio_locacao",
   "fim_locacao",
   "localidade",
+  "ultima_localidade_vista",
+  "bitdefender_instalado",
 ];
 const employeeHeaders = ["nome", "email", "cpf", "cargo", "area", "unidade", "gestor", "telefone"];
 
@@ -101,6 +103,10 @@ function toDate(value: string) {
     return date.toISOString().slice(0, 10);
   }
   return null;
+}
+
+function toBoolean(value: string) {
+  return ["sim", "s", "true", "1", "yes", "instalado"].includes(value.trim().toLowerCase());
 }
 
 function Importacao() {
@@ -169,6 +175,11 @@ function Importacao() {
               supplier: pick(row, ["fornecedor", "locadora"]) || "Simpress",
               contract_number: pick(row, ["contrato", "contrato_numero"]) || null,
               location: pick(row, ["localidade", "local", "unidade"]) || null,
+              last_seen_location:
+                pick(row, ["ultima_localidade_vista", "localidade_vista", "last_seen_location"]) || null,
+              bitdefender_installed: toBoolean(
+                pick(row, ["bitdefender_instalado", "bitdefender", "bitdefender_installed"]),
+              ),
               monthly_cost: Number(
                 pick(row, ["custo_mensal", "valor_mensal", "custo"]).replace(",", "."),
               ) || null,
