@@ -1,0 +1,9 @@
+ALTER PUBLICATION supabase_realtime ADD TABLE public.app_settings;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.import_batches;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.import_rows;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.audit_log;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.assignment_checklists;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.agreement_reminders;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.profiles;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.access_allowlist;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.access_denied_attempts;
