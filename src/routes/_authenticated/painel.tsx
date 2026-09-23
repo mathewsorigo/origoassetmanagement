@@ -24,7 +24,6 @@ const AssetLocationMap = lazy(() =>
 );
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
-import { StatusBadge } from "@/components/status-badge";
 import { StatCard } from "@/components/stat-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
@@ -76,7 +75,7 @@ function Painel() {
         return all;
       }
 
-      const [assets, employees, timeline, agreements, assignments, signed, pending, active] =
+      const [assets, employees, timeline, assignments, signed, active] =
         await Promise.all([
         fetchAll((from, to) =>
           supabase
@@ -94,12 +93,6 @@ function Painel() {
           supabase.from("assignments").select("id,assigned_at").order("id").range(from, to),
         ),
         supabase
-          .from("agreements")
-          .select("id,status,created_at,employee:employees(full_name),asset:assets(serial_number)")
-          .not("status", "in", "(assinado,recusado)")
-          .order("created_at", { ascending: false })
-          .limit(8),
-        supabase
           .from("assignments")
           .select(
             "id,assigned_at,status,employee:employees(full_name),asset:assets(serial_number,brand,model)",
@@ -112,10 +105,6 @@ function Painel() {
           .select("id", { count: "exact", head: true })
           .eq("status", "assinado"),
         supabase
-          .from("agreements")
-          .select("id", { count: "exact", head: true })
-          .not("status", "in", "(assinado,recusado)"),
-        supabase
           .from("assignments")
           .select("id", { count: "exact", head: true })
           .eq("status", "ativo"),
@@ -124,10 +113,8 @@ function Painel() {
         assets,
         employees,
         timeline,
-        agreements: agreements.data ?? [],
         assignments: assignments.data ?? [],
         signedCount: signed.count ?? 0,
-        pendingCount: pending.count ?? 0,
         activeCount: active.count ?? 0,
       };
     },
@@ -135,7 +122,6 @@ function Painel() {
 
   const assets = data?.assets ?? [];
   const count = (status: string) => assets.filter((a) => a.status === status).length;
-  const pendingAgreements = data?.agreements ?? [];
   const signedCount = data?.signedCount ?? 0;
 
   const locations = Array.from(

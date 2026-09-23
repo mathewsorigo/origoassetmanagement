@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import type { GeoJsonObject } from "geojson";
 import {
   ComposableMap,
   Geographies,
@@ -102,7 +103,7 @@ export function AssetLocationMap({
         >
           <Sphere id="asset-map-sphere" fill="var(--card)" stroke="var(--border)" strokeWidth={0.7} />
           <Graticule stroke="var(--border)" strokeWidth={0.35} />
-          <Geographies geography={world}>
+          <Geographies geography={world as unknown as GeoJsonObject}>
             {({ geographies }) =>
               geographies.map((geography) => (
                 <Geography
@@ -111,11 +112,7 @@ export function AssetLocationMap({
                   fill="var(--muted)"
                   stroke="var(--card)"
                   strokeWidth={0.55}
-                  style={{
-                    default: { outline: "none" },
-                    hover: { fill: "var(--secondary)", outline: "none" },
-                    pressed: { outline: "none" },
-                  }}
+                  className="outline-none transition-colors hover:fill-secondary focus:fill-secondary"
                 />
               ))
             }
@@ -132,7 +129,9 @@ export function AssetLocationMap({
                   onMouseLeave={() => setActive(null)}
                   onFocus={() => setActive(item)}
                   onBlur={() => setActive(null)}
-                  onClick={() => setActive((current) => (current?.location === item.location ? null : item))}
+                  onClick={() =>
+                    setActive((current) => (current?.location === item.location ? null : item))
+                  }
                   className="cursor-pointer outline-none"
                 >
                   <circle r={radius + 4} fill="var(--primary)" opacity={0.16} />
