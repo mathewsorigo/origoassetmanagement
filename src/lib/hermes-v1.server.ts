@@ -510,7 +510,8 @@ const assignmentCreate = z
     assigned_at: z.string().datetime().optional(),
     delivery_condition: optStr(500),
     notes: optStr(1000),
-    create_agreement: z.boolean().default(true),
+    create_agreement: z.boolean().default(false),
+    assignment_kind: z.enum(["physical_delivery", "administrative"]).default("physical_delivery"),
     explicit_request: z.literal(true).optional(),
   })
   .strict();
@@ -518,11 +519,9 @@ const assignmentCreate = z
 async function openAssignment(ctx: Ctx, asset: any, employee: any, d: any) {
   if (asset.is_test !== employee.is_test)
     throw fail(422, "test_isolation", "Registros de teste precisam corresponder.");
-  if (d.create_agreement === false)
-    throw fail(422, "agreement_required", "Toda entrega exige termo. Use create_agreement=true.");
-  const template = await run(
+  const template = d.create_agreement ? await run(
     ctx.db.from("agreement_templates").select("id,body").eq("is_default", true).single(),
-  );
+  ) : null;
   const id = randomUUID(),
     assigned = d.assigned_at ?? new Date().toISOString();
   await run(
@@ -533,11 +532,13 @@ async function openAssignment(ctx: Ctx, asset: any, employee: any, d: any) {
       p_assigned_at: assigned,
       p_delivery_condition: d.delivery_condition ?? "",
       p_notes: d.notes ?? "",
-      p_template_id: template.id,
-      p_content: renderAgreement(template.body, employee, asset, {
+      p_template_id: template?.id ?? null,
+      p_create_agreement: d.create_agreement,
+      p_assignment_kind: d.assignment_kind,
+      p_content: template ? renderAgreement(template.body, employee, asset, {
         deliveryDate: assigned,
         deliveryCondition: d.delivery_condition ?? "",
-      }),
+      }) : null,
       p_items: [
         {
           label: "Conferência pela integração",
@@ -550,7 +551,7 @@ async function openAssignment(ctx: Ctx, asset: any, employee: any, d: any) {
   );
   return {
     assignment: await getRow(ctx, "assignments", id),
-    agreement: await run(ctx.db.from("agreements").select("*").eq("assignment_id", id).single()),
+    agreement: await run(ctx.db.from("agreements").select("*").eq("assignment_id", id).maybeSingle()),
   };
 }
 
@@ -648,7 +649,8 @@ const assignments = {
           to_employee_id: uuid,
           delivery_condition: optStr(500),
           notes: optStr(1000),
-          create_agreement: z.boolean().default(true),
+          create_agreement: z.boolean().default(false),
+    assignment_kind: z.enum(["physical_delivery", "administrative"]).default("physical_delivery"),
         })
         .strict(),
     );
@@ -658,11 +660,9 @@ const assignments = {
       getRow(ctx, "employees", d.to_employee_id),
       getRow(ctx, "assets", before.asset_id),
     ]);
-    if (d.create_agreement === false)
-      throw fail(422, "agreement_required", "Toda entrega exige termo.");
-    const template = await run(
+    const template = d.create_agreement ? await run(
       ctx.db.from("agreement_templates").select("id,body").eq("is_default", true).single(),
-    );
+    ) : null;
     const id = randomUUID(),
       assigned = new Date().toISOString();
     await run(
@@ -675,11 +675,13 @@ const assignments = {
           assigned_at: assigned,
           condition: d.delivery_condition ?? "",
           notes: d.notes ?? "",
-          template_id: template.id,
-          content: renderAgreement(template.body, to, asset, {
+          template_id: template?.id ?? null,
+          create_agreement: d.create_agreement,
+          assignment_kind: d.assignment_kind,
+          content: template ? renderAgreement(template.body, to, asset, {
             deliveryDate: assigned,
             deliveryCondition: d.delivery_condition ?? "",
-          }),
+          }) : null,
           items: [
             { label: "Conferência pela integração", ok: null, reason: "Transferência via Hermes" },
           ],
@@ -693,7 +695,7 @@ const assignments = {
         closed_assignment: await getRow(ctx, "assignments", p.id),
         assignment: created,
         agreement: await run(
-          ctx.db.from("agreements").select("*").eq("assignment_id", id).single(),
+          ctx.db.from("agreements").select("*").eq("assignment_id", id).maybeSingle(),
         ),
       },
       201,
@@ -1670,14 +1672,15 @@ export const ROUTES: RouteDef[] = [
     path: "/assignments",
     scope: "write",
     tag: "Vínculos",
-    summary: "Vincular equipamento (gera termo em rascunho)",
+    summary: "Vincular equipamento (termo opcional; administrativo não comprova entrega)",
     handler: assignments.create,
     body: assignmentCreate,
     example: {
       asset_id: "<uuid>",
       employee_id: "<uuid>",
       delivery_condition: "Novo",
-      create_agreement: true,
+      create_agreement: false,
+      assignment_kind: "administrative",
     },
   },
   {
@@ -1721,7 +1724,8 @@ export const ROUTES: RouteDef[] = [
       to_employee_id: uuid,
       delivery_condition: optStr(500),
       notes: optStr(1000),
-      create_agreement: z.boolean().optional(),
+      create_agreement: z.boolean().default(false),
+      assignment_kind: z.enum(["physical_delivery", "administrative"]).default("physical_delivery"),
     }),
     ifMatch: true,
     example: { to_employee_id: "<uuid>" },
