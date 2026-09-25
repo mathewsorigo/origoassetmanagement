@@ -140,6 +140,8 @@ export function AssetDetailPanel({
   const [returnCondition, setReturnCondition] = useState("");
   const [assignForm, setAssignForm] = useState({
     employee_id: "",
+    assignment_kind: "physical_delivery" as "physical_delivery" | "administrative",
+    create_agreement: false,
     assigned_at: localCalendarDate(),
     delivery_condition: "Novo / em perfeito estado",
   });
@@ -259,14 +261,13 @@ export function AssetDetailPanel({
   }, [history, activity]);
 
   const { data: employees } = useQuery({
-    queryKey: ["employees-simple"],
+    queryKey: ["employees-assignment-policy"],
     enabled: open,
     queryFn: async () => {
       return fetchAll((from, to) =>
         supabase
           .from("employees")
-          .select("id,full_name,email,cpf,job_title,department")
-          .eq("status", "ativo")
+          .select("id,full_name,email,cpf,job_title,department,status")
           .is("archived_at", null)
           .order("full_name")
           .order("id")
@@ -400,14 +401,13 @@ export function AssetDetailPanel({
       if (!employee || !asset) throw new Error("Selecione o colaborador.");
 
       if (!assignForm.assigned_at) throw new Error("Informe a data da entrega.");
-      const { data: template, error: templateError } = await supabase
+      const { data: template, error: templateError } = assignForm.create_agreement ? await supabase
         .from("agreement_templates")
         .select("id,body")
         .eq("is_default", true)
-        .maybeSingle();
-
+        .maybeSingle() : { data: null, error: null };
       if (templateError) throw templateError;
-      if (!template)
+      if (assignForm.create_agreement && !template)
         throw new Error("Configure um modelo de termo padrão antes de registrar a entrega.");
       assertChecklist(deliveryChecks);
       const deliveryId = crypto.randomUUID();
@@ -419,11 +419,13 @@ export function AssetDetailPanel({
         p_assigned_at: new Date(assignForm.assigned_at + "T00:00:00").toISOString(),
         p_delivery_condition: assignForm.delivery_condition,
         p_notes: "",
-        p_template_id: template.id,
-        p_content: renderAgreement(template.body, employee, asset, {
+        p_template_id: template?.id ?? null,
+        p_create_agreement: assignForm.create_agreement,
+        p_assignment_kind: assignForm.assignment_kind,
+        p_content: template ? renderAgreement(template.body, employee, asset, {
           deliveryDate: assignForm.assigned_at,
           deliveryCondition: assignForm.delivery_condition,
-        }),
+        }) : null,
         p_items: deliveryChecks,
         p_photos: uploaded,
       });
@@ -434,7 +436,7 @@ export function AssetDetailPanel({
       setAssignOpen(false);
       setDeliveryChecks(emptyChecklist());
       setDeliveryPhotos([]);
-      setAssignForm({ ...assignForm, employee_id: "" });
+      setAssignForm({ ...assignForm, create_agreement: false, employee_id: "" });
       queryClient.invalidateQueries();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -1011,13 +1013,23 @@ export function AssetDetailPanel({
           <DialogHeader>
             <DialogTitle className="font-display">Vincular equipamento</DialogTitle>
             <DialogDescription>
-              O termo de responsabilidade é gerado automaticamente com os dados do colaborador e do
-              equipamento.
+              Termo opcional, somente em rascunho. Vínculo administrativo não comprova posse ou entrega física.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor={"qa-assetdetailpaneltsx-39537-"}>Colaborador</Label>
+              <label className="block space-y-2">Tipo de vínculo
+                <select className="block w-full rounded border p-2" value={assignForm.assignment_kind}
+                  onChange={(e) => setAssignForm({ ...assignForm, create_agreement: false, employee_id: "", assignment_kind: e.target.value as "physical_delivery" | "administrative" })}>
+                  <option value="physical_delivery">Entrega física (somente ativos)</option>
+                  <option value="administrative">Administrativo (ativos e inativos; sem reativação)</option>
+                </select>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={assignForm.create_agreement} onChange={(e) => setAssignForm({ ...assignForm, create_agreement: e.target.checked })} />
+                Criar termo em rascunho (opcional; não envia)
+              </label>
               <Select
                 value={assignForm.employee_id}
                 onValueChange={(v) => setAssignForm({ ...assignForm, employee_id: v })}
@@ -1026,9 +1038,9 @@ export function AssetDetailPanel({
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(employees ?? []).map((e) => (
+                  {(employees ?? []).filter((e) => assignForm.assignment_kind === "administrative" || e.status === "ativo").map((e) => (
                     <SelectItem key={e.id} value={e.id}>
-                      {e.full_name} — {e.email}
+                      {e.full_name}{e.status === "inativo" ? " (inativo)" : ""} — {e.email}
                     </SelectItem>
                   ))}
                 </SelectContent>

@@ -56,12 +56,12 @@ export const Route = createFileRoute("/_authenticated/vinculos")({
       {
         name: "description",
         content:
-          "Vincule equipamentos a colaboradores; o termo de uso é gerado automaticamente na entrega.",
+          "Vincule equipamentos com termo opcional.",
       },
       { property: "og:title", content: "Vínculos · Órigo Ativos" },
       {
         property: "og:description",
-        content: "Entregas e devoluções de equipamentos com termo automático.",
+        content: "Vínculos físicos e administrativos com termo opcional.",
       },
     ],
   }),
@@ -82,6 +82,8 @@ function Vinculos() {
   const [returnPhotos, setReturnPhotos] = useState<File[]>([]);
   const [form, setForm] = useState({
     employee_id: "",
+    assignment_kind: "physical_delivery" as "physical_delivery" | "administrative",
+    create_agreement: false,
     asset_id: "",
     assigned_at: localCalendarDate(),
     delivery_condition: "Novo / em perfeito estado",
@@ -106,13 +108,12 @@ function Vinculos() {
   const { isLoading, table } = list;
 
   const { data: employees } = useQuery({
-    queryKey: ["employees-simple"],
+    queryKey: ["employees-assignment-policy"],
     queryFn: async () => {
       return fetchAll((from, to) =>
         supabase
           .from("employees")
-          .select("id,full_name,email,cpf,job_title,department")
-          .eq("status", "ativo")
+          .select("id,full_name,email,cpf,job_title,department,status")
           .is("archived_at", null)
           .order("full_name")
           .order("id")
@@ -144,13 +145,13 @@ function Vinculos() {
       if (!employee || !asset) throw new Error("Selecione o colaborador e o equipamento.");
 
       if (!form.assigned_at) throw new Error("Informe a data da entrega.");
-      const { data: template, error: templateError } = await supabase
+      const { data: template, error: templateError } = form.create_agreement ? await supabase
         .from("agreement_templates")
         .select("id,body")
         .eq("is_default", true)
-        .maybeSingle();
+        .maybeSingle() : { data: null, error: null };
       if (templateError) throw templateError;
-      if (!template)
+      if (form.create_agreement && !template)
         throw new Error("Configure um modelo de termo padrão antes de registrar a entrega.");
       const id = crypto.randomUUID();
       assertChecklist(checklist);
@@ -162,20 +163,22 @@ function Vinculos() {
         p_assigned_at: new Date(form.assigned_at + "T00:00:00").toISOString(),
         p_delivery_condition: form.delivery_condition,
         p_notes: form.notes,
-        p_template_id: template.id,
-        p_content: renderAgreement(template.body, employee, asset, {
+        p_template_id: template?.id ?? null,
+        p_create_agreement: form.create_agreement,
+        p_assignment_kind: form.assignment_kind,
+        p_content: template ? renderAgreement(template.body, employee, asset, {
           deliveryDate: form.assigned_at,
           deliveryCondition: form.delivery_condition,
-        }),
+        }) : null,
         p_items: checklist,
         p_photos: photos,
       });
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Vínculo criado, termo gerado e checklist registrado.");
+      toast.success("Vínculo e checklist registrados.");
       setOpen(false);
-      setForm({ ...form, employee_id: "", asset_id: "", notes: "" });
+      setForm({ ...form, create_agreement: false, employee_id: "", asset_id: "", notes: "" });
       setChecklist(emptyChecklist());
       setChecklistPhotos([]);
       queryClient.invalidateQueries();
@@ -211,7 +214,7 @@ function Vinculos() {
       <PageHeader
         breadcrumb="Vínculos"
         title="Vínculos"
-        description="Entregas e devoluções. Ao vincular, o termo de uso é preenchido automaticamente."
+        description="Vínculos físicos e administrativos. Termo opcional, sem envio automático."
         actions={
           canEdit ? (
             <Button className="w-full sm:w-auto" onClick={() => setOpen(true)}>
@@ -457,13 +460,23 @@ function Vinculos() {
           <DialogHeader>
             <DialogTitle className="font-display">Novo vínculo</DialogTitle>
             <DialogDescription>
-              O termo de responsabilidade é gerado automaticamente com os dados do colaborador e do
-              equipamento.
+              Termo opcional, somente em rascunho. Vínculo administrativo não comprova posse ou entrega física.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor={"qa-vinculostsx-17294-"}>Colaborador</Label>
+              <label className="block space-y-2">Tipo de vínculo
+                <select className="block w-full rounded border p-2" value={form.assignment_kind}
+                  onChange={(e) => setForm({ ...form, create_agreement: false, employee_id: "", assignment_kind: e.target.value as "physical_delivery" | "administrative" })}>
+                  <option value="physical_delivery">Entrega física (somente ativos)</option>
+                  <option value="administrative">Administrativo (ativos e inativos; sem reativação)</option>
+                </select>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={form.create_agreement} onChange={(e) => setForm({ ...form, create_agreement: e.target.checked })} />
+                Criar termo em rascunho (opcional; não envia)
+              </label>
               <Select
                 value={form.employee_id}
                 onValueChange={(v) => setForm({ ...form, employee_id: v })}
@@ -472,9 +485,9 @@ function Vinculos() {
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(employees ?? []).map((e) => (
+                  {(employees ?? []).filter((e) => form.assignment_kind === "administrative" || e.status === "ativo").map((e) => (
                     <SelectItem key={e.id} value={e.id}>
-                      {e.full_name} — {e.email}
+                      {e.full_name}{e.status === "inativo" ? " (inativo)" : ""} — {e.email}
                     </SelectItem>
                   ))}
                 </SelectContent>

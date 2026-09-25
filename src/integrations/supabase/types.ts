@@ -400,6 +400,7 @@ export type Database = {
       };
       assignments: {
         Row: {
+          assignment_kind: "physical_delivery" | "administrative";
           asset_id: string;
           assigned_at: string;
           created_at: string;
@@ -415,6 +416,7 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
+          assignment_kind?: "physical_delivery" | "administrative";
           asset_id: string;
           assigned_at?: string;
           created_at?: string;
@@ -430,6 +432,7 @@ export type Database = {
           updated_at?: string;
         };
         Update: {
+          assignment_kind?: "physical_delivery" | "administrative";
           asset_id?: string;
           assigned_at?: string;
           created_at?: string;
@@ -1172,14 +1175,16 @@ export type Database = {
       };
       create_assignment_complete: {
         Args: {
+          p_create_agreement?: boolean;
+          p_assignment_kind?: "physical_delivery" | "administrative";
           p_id: string;
           p_asset_id: string;
           p_employee_id: string;
           p_assigned_at: string;
           p_delivery_condition: string;
           p_notes: string;
-          p_template_id: string;
-          p_content: string;
+          p_template_id: string | null;
+          p_content: string | null;
           p_items: Json;
           p_photos: string[];
         };
